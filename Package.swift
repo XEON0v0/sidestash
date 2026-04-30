@@ -3,12 +3,14 @@ import PackageDescription
 
 let package = Package(
     name: "FileStash",
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v14)
     ],
     targets: [
         .executableTarget(
-            name: "FileStash"
+            name: "FileStash",
+            resources: [.process("en.lproj"), .process("zh-Hans.lproj")]
         ),
         .testTarget(
             name: "FileStashTests",

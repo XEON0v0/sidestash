@@ -75,7 +75,7 @@ struct StashContentView: View {
             Image(systemName: "tray.and.arrow.down")
                 .font(.system(size: 40))
                 .foregroundColor(.secondary)
-            Text("拖拽文件到这里")
+            Text(NSLocalizedString("empty_state.drag_here", comment: "Empty state instruction"))
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)
         }

@@ -49,11 +49,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showContextMenu() {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "显示/隐藏", action: #selector(togglePanel), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: NSLocalizedString("menu.show_hide", comment: "Toggle panel"), action: #selector(togglePanel), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "打开暂存文件夹", action: #selector(openStashFolder), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: NSLocalizedString("menu.open_stash", comment: "Open stash folder in Finder"), action: #selector(openStashFolder), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "退出", action: #selector(quitApp), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: NSLocalizedString("menu.quit", comment: "Quit the application"), action: #selector(quitApp), keyEquivalent: "q"))
 
         statusItem?.menu = menu
         statusItem?.button?.performClick(nil)

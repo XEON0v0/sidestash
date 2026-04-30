@@ -1,0 +1,18 @@
+Task 2: Fix StashItem identity
+================================
+Date: 2026-04-30
+
+Change: StashItem.id changed from `let id = UUID()` (random) to `var id: String { url.path }` (stable file-path-based)
+
+File: Sources/FileStash/StashStore.swift
+Line: 5
+
+Before: let id = UUID()
+After:  var id: String { url.path }
+
+Verification:
+- lsp_diagnostics: No errors
+- swift build: Build complete (1.44s)
+- grep -c "UUID" Sources/FileStash/StashStore.swift: 0 (UUID eliminated from StashItem definition)
+
+Note: Equatable conformance (line 11-13) uses `lhs.id == rhs.id` which works correctly with String type.

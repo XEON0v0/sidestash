@@ -1,0 +1,10 @@
+TASK: Atomic metadata write + safe FileManager URL unwrap
+STATUS: PASSED
+
+Changes made to Sources/FileStash/StashStore.swift:
+1. stashDirectory: Replaced `FileManager.default.urls(...).first!` with safe unwrap + fallback to `homeDirectoryForCurrentUser`
+2. stashDirectory: Cached result in `_stashDirectory: URL?` stored property to avoid re-computation
+3. saveMetadata(): Now writes to temp file first then uses `FileManager.default.replaceItemAt()` for atomic swap, with fallback to direct write
+
+Build: swift build succeeded (0.96s)
+Diagnostics: 0 errors

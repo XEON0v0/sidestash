@@ -1,0 +1,7 @@
+.build/
+*.xcodeproj/
+*.xcworkspace/
+FileStash.app/
+DerivedData/
+.DS_Store
+*.swp

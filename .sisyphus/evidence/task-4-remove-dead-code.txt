@@ -1,0 +1,14 @@
+Task 4: Remove dead code `unstash(item:)`
+===========================================
+
+Method removed: `func unstash(item: StashItem)` at lines 148-160
+
+Confirmation of dead code:
+- grep "unstash" Sources/ — only matched the method definition and an unrelated print message on line 133 ("Restored unstashed file to ...")
+- No callers anywhere in Sources/
+
+Verification:
+- lsp_diagnostics: no errors
+- swift build: Build complete (0.06s)
+
+Date: 2026-04-30

@@ -3,6 +3,12 @@ import Testing
 @testable import FileStash
 
 struct StashWindowLifecycleTests {
+    @Test func edgePreviewChrome_onlyShowsDuringAttachedRevealAnimation() {
+        #expect(AttachedPanelChromePolicy.isEdgePreviewVisible(isFinderAttached: true, isRevealAnimating: true))
+        #expect(!AttachedPanelChromePolicy.isEdgePreviewVisible(isFinderAttached: true, isRevealAnimating: false))
+        #expect(!AttachedPanelChromePolicy.isEdgePreviewVisible(isFinderAttached: false, isRevealAnimating: true))
+    }
+
     @Test func attachedPanelClosesWhenTrackedFinderWindowDisappears() {
         let decision = AttachedPanelLifecyclePolicy.decision(
             isFinderAttached: true,

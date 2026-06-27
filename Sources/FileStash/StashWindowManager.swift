@@ -14,6 +14,12 @@ enum AttachedPanelKeyboardDecision: Equatable {
     case ignore
 }
 
+enum AttachedPanelChromePolicy {
+    static func isEdgePreviewVisible(isFinderAttached: Bool, isRevealAnimating: Bool) -> Bool {
+        isFinderAttached && isRevealAnimating
+    }
+}
+
 enum AttachedPanelLifecyclePolicy {
     static func decision(
         isFinderAttached: Bool,
@@ -61,6 +67,7 @@ class StashWindowManager {
     private var hostingView: NSHostingView<AnyView>?
     private var edgePreviewView: PanelEdgePreviewView?
     private var escapeKeyMonitor: Any?
+    private var isAttachedRevealAnimating = false
 
     init(store: StashStore) {
         self.store = store
@@ -311,14 +318,20 @@ class StashWindowManager {
     private func showAndRefresh(with placement: PanelPlacement) {
         guard let panel = panel else { return }
         updatePanelLayout(for: placement)
-        updateAttachmentChrome(for: placement)
-
         if placement.isFinderAttached {
+            isAttachedRevealAnimating = true
+            updateAttachmentChrome(for: placement)
             PanelAnimator.shared.animatePanelIn(
                 panel: panel,
                 sequence: AttachedPanelRevealSequence(placement: placement)
-            )
+            ) { [weak self] in
+                guard let self else { return }
+                self.isAttachedRevealAnimating = false
+                self.updateAttachmentChrome(for: placement)
+            }
         } else {
+            isAttachedRevealAnimating = false
+            updateAttachmentChrome(for: placement)
             PanelAnimator.shared.animatePanelIn(
                 panel: panel,
                 from: placement.hiddenRect,
@@ -387,8 +400,12 @@ class StashWindowManager {
     }
 
     private func updateAttachmentChrome(for placement: PanelPlacement) {
-        edgePreviewView?.isHidden = !placement.isFinderAttached
-        edgePreviewView?.alphaValue = placement.isFinderAttached ? 1.0 : 0.0
+        let isVisible = AttachedPanelChromePolicy.isEdgePreviewVisible(
+            isFinderAttached: placement.isFinderAttached,
+            isRevealAnimating: isAttachedRevealAnimating
+        )
+        edgePreviewView?.isHidden = !isVisible
+        edgePreviewView?.alphaValue = isVisible ? 1.0 : 0.0
         edgePreviewView?.edge = placement.edge
     }
 

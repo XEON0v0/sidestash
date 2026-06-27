@@ -26,17 +26,19 @@ class DraggableFileItemView: NSView {
     }
 
     private enum Layout {
-        static let cornerRadius: CGFloat = 10
-        static let borderWidth: CGFloat = 1
-        static let iconSize: CGFloat = 40
-        static let iconTopPadding: CGFloat = 8
-        static let labelTopPadding: CGFloat = 4
-        static let labelHorizontalPadding: CGFloat = 4
-        static let labelFontSize: CGFloat = 11
+        static let rowHeight: CGFloat = 38
+        static let iconSize: CGFloat = 32
+        static let iconLeadingPadding: CGFloat = 8
+        static let labelLeadingPadding: CGFloat = 8
+        static let labelTrailingPadding: CGFloat = 8
+        static let labelFontSize: CGFloat = 13
     }
 
     private var imageView: NSImageView!
     private var label: NSTextField!
+    private var trackingArea: NSTrackingArea?
+    private var activeDragItem: StashItem?
+    private var isDraggingSessionActive = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -50,10 +52,7 @@ class DraggableFileItemView: NSView {
 
     private func commonInit() {
         wantsLayer = true
-        layer?.cornerRadius = Layout.cornerRadius
-        layer?.backgroundColor = NSColor.white.withAlphaComponent(0.06).cgColor
-        layer?.borderWidth = Layout.borderWidth
-        layer?.borderColor = NSColor.white.withAlphaComponent(0.1).cgColor
+        layer?.backgroundColor = NSColor.clear.cgColor
 
         imageView = NSImageView()
         imageView.imageScaling = .scaleProportionallyDown
@@ -61,27 +60,52 @@ class DraggableFileItemView: NSView {
         addSubview(imageView)
 
         label = NSTextField(labelWithString: "")
-        label.alignment = .center
         label.font = NSFont.systemFont(ofSize: Layout.labelFontSize)
         label.textColor = NSColor.labelColor
         label.lineBreakMode = .byTruncatingTail
-        label.maximumNumberOfLines = 2
+        label.maximumNumberOfLines = 1
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
 
         NSLayoutConstraint.activate([
-            imageView.centerXAnchor.constraint(equalTo: centerXAnchor),
-            imageView.topAnchor.constraint(equalTo: topAnchor, constant: Layout.iconTopPadding),
+            imageView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.iconLeadingPadding),
+            imageView.centerYAnchor.constraint(equalTo: centerYAnchor),
             imageView.widthAnchor.constraint(equalToConstant: Layout.iconSize),
             imageView.heightAnchor.constraint(equalToConstant: Layout.iconSize),
 
-            label.topAnchor.constraint(equalTo: imageView.bottomAnchor, constant: Layout.labelTopPadding),
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.labelHorizontalPadding),
-            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Layout.labelHorizontalPadding),
-            label.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -Layout.labelHorizontalPadding)
+            label.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: Layout.labelLeadingPadding),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Layout.labelTrailingPadding),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
+    }
 
-        updateContent()
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea {
+            removeTrackingArea(existing)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(0.2)
+        layer?.backgroundColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        CATransaction.commit()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(0.2)
+        layer?.backgroundColor = NSColor.clear.cgColor
+        CATransaction.commit()
     }
 
     private func updateContent() {
@@ -93,8 +117,41 @@ class DraggableFileItemView: NSView {
         // Capture to prepare for drag
     }
 
+    override func rightMouseDown(with event: NSEvent) {
+        let menu = NSMenu()
+
+        let restoreItem = NSMenuItem(
+            title: NSLocalizedString("context_menu.restore", comment: ""),
+            action: #selector(restoreToOriginal),
+            keyEquivalent: ""
+        )
+        restoreItem.target = self
+        menu.addItem(restoreItem)
+
+        let deleteItem = NSMenuItem(
+            title: NSLocalizedString("context_menu.trash", comment: ""),
+            action: #selector(deleteItem),
+            keyEquivalent: ""
+        )
+        deleteItem.target = self
+        menu.addItem(deleteItem)
+
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
+    }
+
+    @objc private func restoreToOriginal() {
+        guard let storedItem = item else { return }
+        store?.restoreToOriginal(item: storedItem)
+    }
+
+    @objc private func deleteItem() {
+        guard let storedItem = item else { return }
+        store?.delete(item: storedItem)
+    }
+
     override func mouseDragged(with event: NSEvent) {
         guard let item = item else { return }
+        guard !isDraggingSessionActive else { return }
 
         let pasteboardItem = NSPasteboardItem()
         pasteboardItem.setString(item.url.absoluteString, forType: .fileURL)
@@ -110,7 +167,34 @@ class DraggableFileItemView: NSView {
 
         draggingItem.setDraggingFrame(bounds, contents: dragImage)
 
-        beginDraggingSession(with: [draggingItem], event: event, source: self)
+        activeDragItem = item
+        isDraggingSessionActive = true
+        setDragLiftAppearance(lifted: true, animated: true)
+
+        let session = beginDraggingSession(with: [draggingItem], event: event, source: self)
+        session.animatesToStartingPositionsOnCancelOrFail = false
+    }
+
+    private func setDragLiftAppearance(lifted: Bool, animated: Bool) {
+        let targetAlpha: CGFloat = lifted ? InteractionMotionStyle.dragLiftAlpha : 1.0
+        let targetTransform = lifted
+            ? CATransform3DMakeScale(InteractionMotionStyle.dragLiftScale, InteractionMotionStyle.dragLiftScale, 1.0)
+            : CATransform3DIdentity
+        let duration: TimeInterval = animated ? InteractionMotionStyle.dragLiftDuration : 0.0
+        let timingName: CAMediaTimingFunctionName = lifted ? .easeOut : .easeInEaseOut
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = duration
+            context.timingFunction = CAMediaTimingFunction(name: timingName)
+            context.allowsImplicitAnimation = true
+            self.animator().alphaValue = targetAlpha
+        }
+
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(duration)
+        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: timingName))
+        layer?.transform = targetTransform
+        CATransaction.commit()
     }
 }
 
@@ -120,10 +204,17 @@ extension DraggableFileItemView: NSDraggingSource {
     }
 
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
-        guard operation != [], let item = item else { return }
+        let didCompleteDrop = operation != []
+        let draggedItem = activeDragItem ?? item
+        activeDragItem = nil
+        isDraggingSessionActive = false
 
-        DispatchQueue.main.async {
-            self.store?.finalizeDrag(item: item)
+        if !didCompleteDrop {
+            setDragLiftAppearance(lifted: false, animated: true)
+            return
         }
+
+        guard let draggedItem else { return }
+        store?.finalizeDrag(item: draggedItem)
     }
 }

@@ -15,10 +15,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         setupStatusItem()
         setupDragDetector()
+        FinderWindowTracker.shared.startMonitoring()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         DragDetector.shared.stopMonitoring()
+        FinderWindowTracker.shared.stopMonitoring()
     }
 
     private func setupDragDetector() {
@@ -53,6 +55,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: NSLocalizedString("menu.open_stash", comment: "Open stash folder in Finder"), action: #selector(openStashFolder), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
+        let trackerItem = NSMenuItem(
+            title: NSLocalizedString("menu.enable_finder_integration", comment: "Enable Finder window integration"),
+            action: #selector(promptAccessibilityPermission),
+            keyEquivalent: ""
+        )
+        trackerItem.target = self
+        let granted = FinderWindowTracker.shared.isAccessibilityGranted
+        trackerItem.state = granted ? .on : .off
+        trackerItem.attributedTitle = NSAttributedString(
+            string: trackerItem.title,
+            attributes: granted ? [:] : [.foregroundColor: NSColor.secondaryLabelColor]
+        )
+        menu.addItem(trackerItem)
+        menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: NSLocalizedString("menu.quit", comment: "Quit the application"), action: #selector(quitApp), keyEquivalent: "q"))
 
         statusItem?.menu = menu
@@ -66,6 +82,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openStashFolder() {
         NSWorkspace.shared.open(store.stashDirectory)
+    }
+
+    @objc private func promptAccessibilityPermission() {
+        FinderWindowTracker.shared.promptAccessibility()
     }
 
     @objc private func quitApp() {

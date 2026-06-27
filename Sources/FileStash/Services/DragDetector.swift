@@ -14,8 +14,8 @@ class DragDetector {
     private var detectionStartTime: Date?
     private(set) var isMonitoring = false
 
-    private let dragThreshold: CGFloat = 12.0
-    private let maxDetectionInterval: TimeInterval = 1.0
+    private let dragThreshold: CGFloat = 40.0
+    private let maxDetectionInterval: TimeInterval = 2.0
     private let trackingInterval: TimeInterval = 0.03
 
     private init() {}

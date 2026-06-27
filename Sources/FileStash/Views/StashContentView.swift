@@ -2,6 +2,7 @@ import SwiftUI
 
 struct StashContentView: View {
     @EnvironmentObject var store: StashStore
+    var panelHeight: CGFloat = 420
     var onClose: (() -> Void)?
 
     private enum Layout {
@@ -14,8 +15,8 @@ struct StashContentView: View {
 
     var body: some View {
         ZStack {
-            VisualEffectBlur()
-                .cornerRadius(16)
+            GlassBackgroundView()
+                .allowsHitTesting(false)
 
             VStack(spacing: 0) {
                 header
@@ -30,7 +31,7 @@ struct StashContentView: View {
                 }
             }
         }
-        .frame(width: 300, height: 420)
+        .frame(width: 320, height: panelHeight)
     }
 
     private var header: some View {
@@ -61,38 +62,28 @@ struct StashContentView: View {
 
     private var fileGrid: some View {
         ScrollView {
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            VStack(spacing: 0) {
                 ForEach(store.items) { item in
                     FileGridItem(item: item)
+                        .transition(.opacity.combined(with: .move(edge: .leading)))
                 }
             }
             .padding(12)
         }
+        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: store.items.count)
     }
 
     private var emptyState: some View {
         VStack(spacing: 8) {
             Image(systemName: "tray.and.arrow.down")
-                .font(.system(size: 40))
+                .font(.system(size: 48))
                 .foregroundColor(.secondary)
             Text(NSLocalizedString("empty_state.drag_here", comment: "Empty state instruction"))
-                .font(.system(size: 13))
+                .font(.system(size: 14))
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-}
-
-struct VisualEffectBlur: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .hudWindow
-        view.blendingMode = .withinWindow
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }
 
 struct WindowDragHandle: NSViewRepresentable {

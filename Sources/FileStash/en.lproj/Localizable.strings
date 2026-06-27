@@ -2,3 +2,6 @@
 "menu.open_stash" = "Open Stash Folder";
 "menu.quit" = "Quit";
 "empty_state.drag_here" = "Drag files here";
+"context_menu.restore" = "Restore to Original Location";
+"context_menu.trash" = "Move to Trash";
+"menu.enable_finder_integration" = "Enable Finder Integration";

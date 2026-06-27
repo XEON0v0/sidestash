@@ -1,106 +1,138 @@
 import AppKit
+import Combine
+import OSLog
 import SwiftUI
+
+enum AttachedPanelLifecycleDecision: Equatable {
+    case close
+    case ignore
+    case update(FinderWindowSnapshot)
+}
+
+enum AttachedPanelKeyboardDecision: Equatable {
+    case close
+    case ignore
+}
+
+enum AttachedPanelLifecyclePolicy {
+    static func decision(
+        isFinderAttached: Bool,
+        trackedSnapshot: FinderWindowSnapshot?,
+        latestSnapshot: FinderWindowSnapshot?
+    ) -> AttachedPanelLifecycleDecision {
+        guard isFinderAttached else { return .ignore }
+        guard let trackedSnapshot else { return .ignore }
+        guard let latestSnapshot else { return .close }
+
+        if let trackedWindowID = trackedSnapshot.windowID,
+           let latestWindowID = latestSnapshot.windowID,
+           trackedWindowID != latestWindowID {
+            return .close
+        }
+
+        if trackedSnapshot.windowID == nil,
+           latestSnapshot.windowID == nil,
+           trackedSnapshot.rect != latestSnapshot.rect {
+            return .close
+        }
+
+        return .update(latestSnapshot)
+    }
+
+    static func keyboardDecision(for keyCode: UInt16) -> AttachedPanelKeyboardDecision {
+        keyCode == 53 ? .close : .ignore
+    }
+
+    static func resetTrackingStateAfterManualClose(trackedSnapshot: FinderWindowSnapshot?) -> FinderWindowSnapshot? {
+        nil
+    }
+}
 
 @MainActor
 class StashWindowManager {
     static let shared = StashWindowManager(store: StashStore())
+    private let logger = Logger(subsystem: "com.FileStash", category: "Windowing")
     private let store: StashStore
     private var panel: NSPanel?
+    private var currentPlacement: PanelPlacement?
+    private var attachedFinderWindowSnapshot: FinderWindowSnapshot?
+    private var finderAttachmentObserver: AnyCancellable?
+    private var finderFollowTimer: Timer?
+    private var hostingView: NSHostingView<AnyView>?
+    private var edgePreviewView: PanelEdgePreviewView?
+    private var escapeKeyMonitor: Any?
 
     init(store: StashStore) {
         self.store = store
+        observeFinderAttachment()
     }
 
     private enum Layout {
-        static let panelWidth: CGFloat = 300
+        static let panelWidth: CGFloat = 320
         static let panelHeight: CGFloat = 420
         static let panelOffset: CGFloat = 20
+        static let finderRevealInset: CGFloat = InteractionMotionStyle.attachedPeekInset
+        static let finderPreviewInset: CGFloat = InteractionMotionStyle.attachedPreviewInset
+        static let fallbackHiddenTravel: CGFloat = 48
+        static let statusItemGap: CGFloat = 10
+        static let statusItemHiddenLift: CGFloat = 24
     }
+
+    // MARK: - Show Panel (Menu Bar)
 
     func showPanel(near statusItemButton: NSStatusBarButton?) {
         ensurePanelCreated()
-
-        if let button = statusItemButton {
-            let buttonRect = button.window?.convertToScreen(button.frame) ?? NSRect(x: 300, y: 300, width: 0, height: 0)
-            let panelX = buttonRect.midX - Layout.panelWidth / 2
-            let panelY = buttonRect.minY - Layout.panelHeight - 10
-            panel?.setFrameOrigin(NSPoint(x: panelX, y: panelY))
-        } else {
-            panel?.center()
-        }
-
-        panel?.makeKeyAndOrderFront(nil)
-        store.refreshItems()
-        DragDetector.shared.stopMonitoring()
+        refreshFinderAttachment(preferredRect: attachedFinderWindowSnapshot?.rect)
+        let placement = resolvedPlacement(statusItemButton: statusItemButton)
+        currentPlacement = placement
+        captureFinderAttachmentIfNeeded(for: placement)
+        panel?.setFrame(placement.targetRect, display: false)
+        showAndRefresh(with: placement)
     }
+
+    // MARK: - Show Panel (Drag Detected)
 
     func showPanel(near point: NSPoint) {
         ensurePanelCreated()
+        refreshFinderAttachment(preferredRect: attachedFinderWindowSnapshot?.rect)
+        let placement = resolvedPlacement(mousePoint: point)
+        currentPlacement = placement
+        captureFinderAttachmentIfNeeded(for: placement)
+        panel?.setFrame(placement.targetRect, display: false)
+        showAndRefresh(with: placement)
+    }
 
-        let offset = Layout.panelOffset
-        let panelSize = NSSize(width: Layout.panelWidth, height: Layout.panelHeight)
-        var origin = NSPoint(x: point.x + offset, y: point.y - panelSize.height - offset)
+    // MARK: - Hide Panel
 
-        if let screen = NSScreen.screens.first(where: { NSPointInRect(point, $0.frame) }) ?? NSScreen.main {
-            let visibleFrame = screen.visibleFrame
-            if origin.x + panelSize.width > visibleFrame.maxX {
-                origin.x = point.x - panelSize.width - offset
-            }
-            if origin.x < visibleFrame.minX {
-                origin.x = visibleFrame.minX
-            }
-            if origin.y < visibleFrame.minY {
-                origin.y = point.y + offset
-            }
-            if origin.y + panelSize.height > visibleFrame.maxY {
-                origin.y = visibleFrame.maxY - panelSize.height
-            }
+    func hidePanel() {
+        guard let panel = panel, panel.isVisible else { return }
+
+        let exitRect = currentPlacement?.hiddenRect
+            ?? panel.frame.offsetBy(dx: Layout.fallbackHiddenTravel, dy: 0)
+
+        PanelAnimator.shared.animatePanelOut(panel: panel, to: exitRect) { [weak self] in
+            self?.currentPlacement = nil
+            self?.attachedFinderWindowSnapshot = AttachedPanelLifecyclePolicy.resetTrackingStateAfterManualClose(
+                trackedSnapshot: self?.attachedFinderWindowSnapshot
+            )
+            self?.stopFinderFollow()
+            self?.removeEscapeKeyMonitor()
+            DragDetector.shared.startMonitoring()
         }
-
-        panel?.setFrameOrigin(origin)
-        panel?.makeKeyAndOrderFront(nil)
-        store.refreshItems()
-        DragDetector.shared.stopMonitoring()
     }
 
-    private func ensurePanelCreated() {
-        guard panel == nil else { return }
+    // MARK: - Toggle
 
-        let contentView = StashContentView(
-            onClose: { [weak self] in
-                self?.hidePanel()
-            }
-        )
-            .environmentObject(store)
-
-        let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: Layout.panelWidth, height: Layout.panelHeight),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.hidesOnDeactivate = false
-        panel.isMovableByWindowBackground = false
-        panel.hasShadow = true
-        panel.backgroundColor = .clear
-
-        let dropZone = DropZoneNSView()
-        dropZone.store = store
-        dropZone.frame = panel.frame
-        dropZone.autoresizingMask = [.width, .height]
-
-        let hostingView = NSHostingView(rootView: contentView)
-        hostingView.frame = dropZone.bounds
-        hostingView.autoresizingMask = [.width, .height]
-
-        dropZone.addSubview(hostingView)
-        panel.contentView = dropZone
-
-        self.panel = panel
+    func togglePanel(near statusItemButton: NSStatusBarButton?) {
+        if let panel = panel, panel.isVisible {
+            hidePanel()
+        } else {
+            showPanel(near: statusItemButton)
+            store.refreshItems()
+        }
     }
+
+    // MARK: - Panel Origin
 
     var panelOrigin: NSPoint? {
         panel?.frame.origin
@@ -110,17 +142,327 @@ class StashWindowManager {
         panel?.setFrameOrigin(origin)
     }
 
-    func hidePanel() {
-        panel?.orderOut(nil)
-        DragDetector.shared.startMonitoring()
+    // MARK: - Private: Panel Creation
+
+    private func ensurePanelCreated() {
+        guard panel == nil else { return }
+
+        let panelRect = NSRect(x: 0, y: 0, width: Layout.panelWidth, height: Layout.panelHeight)
+
+        let panel = NSPanel(
+            contentRect: panelRect,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.level = .floating
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.hidesOnDeactivate = false
+        panel.isMovableByWindowBackground = false
+        panel.hasShadow = true
+        panel.backgroundColor = .clear
+
+        let hostingView = NSHostingView(rootView: makeContentView(height: panelRect.height))
+
+        let containerView = NSView(frame: panelRect)
+        containerView.wantsLayer = true
+
+        let glassView: NSView = {
+            if #available(macOS 26, *) {
+                let gv = NSGlassEffectView()
+                gv.cornerRadius = 16
+                gv.style = .regular
+                return gv
+            } else {
+                let vev = NSVisualEffectView()
+                vev.material = .hudWindow
+                vev.blendingMode = .withinWindow
+                vev.state = .active
+                vev.wantsLayer = true
+                vev.layer?.cornerRadius = 16
+                return vev
+            }
+        }()
+        glassView.frame = containerView.bounds
+        glassView.autoresizingMask = [.width, .height]
+        containerView.addSubview(glassView)
+
+        let dropZone = DropZoneNSView(frame: containerView.bounds)
+        dropZone.store = store
+        dropZone.autoresizingMask = [.width, .height]
+        containerView.addSubview(dropZone)
+
+        hostingView.frame = dropZone.bounds
+        hostingView.autoresizingMask = [.width, .height]
+        dropZone.addSubview(hostingView)
+
+        let edgePreviewView = PanelEdgePreviewView(frame: containerView.bounds)
+        edgePreviewView.autoresizingMask = [.width, .height]
+        edgePreviewView.isHidden = true
+        dropZone.addSubview(edgePreviewView)
+
+        panel.contentView = containerView
+        self.panel = panel
+        self.hostingView = hostingView
+        self.edgePreviewView = edgePreviewView
+        installEscapeKeyMonitorIfNeeded()
     }
 
-    func togglePanel(near statusItemButton: NSStatusBarButton?) {
-        if let panel = panel, panel.isVisible {
-            hidePanel()
-        } else {
-            showPanel(near: statusItemButton)
-            store.refreshItems()
+    // MARK: - Private: Positioning
+
+    private func resolvedPlacement(statusItemButton: NSStatusBarButton?) -> PanelPlacement {
+        let panelSize = NSSize(width: Layout.panelWidth, height: Layout.panelHeight)
+
+        if let finderRect = FinderWindowTracker.shared.activeFinderWindowRect,
+           let screen = screenContaining(finderRect) {
+            let placement = PanelPlacement.attachedToFinder(
+                finderRect: finderRect,
+                panelSize: panelSize,
+                visibleFrame: screen.visibleFrame,
+                offset: Layout.panelOffset,
+                revealInset: Layout.finderRevealInset,
+                previewInset: Layout.finderPreviewInset
+            )
+            logPlacement(source: "statusItem", placement: placement, finderRect: finderRect)
+            return placement
         }
+
+        if let button = statusItemButton {
+            let buttonRect = button.window?.convertToScreen(button.frame) ?? NSRect(x: 300, y: 300, width: 0, height: 0)
+            let targetRect = NSRect(
+                x: buttonRect.midX - (Layout.panelWidth / 2),
+                y: buttonRect.minY - Layout.panelHeight - Layout.statusItemGap,
+                width: Layout.panelWidth,
+                height: Layout.panelHeight
+            )
+            let hiddenRect = targetRect.offsetBy(dx: 0, dy: Layout.statusItemHiddenLift)
+            let placement = PanelPlacement(
+                isFinderAttached: false,
+                edge: .right,
+                targetRect: targetRect,
+                previewRect: targetRect,
+                hiddenRect: hiddenRect
+            )
+            logPlacement(source: "statusItemFallback", placement: placement, finderRect: nil)
+            return placement
+        }
+
+        let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let targetRect = NSRect(
+            x: screen.midX - (Layout.panelWidth / 2),
+            y: screen.midY - (Layout.panelHeight / 2),
+            width: Layout.panelWidth,
+            height: Layout.panelHeight
+        )
+        let hiddenRect = targetRect.offsetBy(dx: 0, dy: Layout.statusItemHiddenLift)
+        let placement = PanelPlacement(
+            isFinderAttached: false,
+            edge: .right,
+            targetRect: targetRect,
+            previewRect: targetRect,
+            hiddenRect: hiddenRect
+        )
+        logPlacement(source: "statusItemCenterFallback", placement: placement, finderRect: nil)
+        return placement
+    }
+
+    private func resolvedPlacement(mousePoint: NSPoint) -> PanelPlacement {
+        let panelSize = NSSize(width: Layout.panelWidth, height: Layout.panelHeight)
+
+        if let finderRect = FinderWindowTracker.shared.activeFinderWindowRect,
+           let screen = screenContaining(finderRect) {
+            let placement = PanelPlacement.attachedToFinder(
+                finderRect: finderRect,
+                panelSize: panelSize,
+                visibleFrame: screen.visibleFrame,
+                offset: Layout.panelOffset,
+                revealInset: Layout.finderRevealInset,
+                previewInset: Layout.finderPreviewInset
+            )
+            logPlacement(source: "mouse", placement: placement, finderRect: finderRect)
+            return placement
+        }
+
+        let visibleFrame = screenContaining(mousePoint)?.visibleFrame
+            ?? NSScreen.main?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+
+        let placement = PanelPlacement.nearMouse(
+            point: mousePoint,
+            panelSize: panelSize,
+            visibleFrame: visibleFrame,
+            offset: Layout.panelOffset,
+            hiddenTravel: Layout.fallbackHiddenTravel
+        )
+        logPlacement(source: "mouseFallback", placement: placement, finderRect: nil)
+        return placement
+    }
+
+    private func screenContaining(_ rect: NSRect) -> NSScreen? {
+        screenContaining(NSPoint(x: rect.midX, y: rect.midY))
+    }
+
+    private func screenContaining(_ point: NSPoint) -> NSScreen? {
+        NSScreen.screens.first(where: { NSPointInRect(point, $0.frame) }) ?? NSScreen.main
+    }
+
+    // MARK: - Private: Show & Refresh
+
+    private func showAndRefresh(with placement: PanelPlacement) {
+        guard let panel = panel else { return }
+        updatePanelLayout(for: placement)
+        updateAttachmentChrome(for: placement)
+
+        if placement.isFinderAttached {
+            PanelAnimator.shared.animatePanelIn(
+                panel: panel,
+                sequence: AttachedPanelRevealSequence(placement: placement)
+            )
+        } else {
+            PanelAnimator.shared.animatePanelIn(
+                panel: panel,
+                from: placement.hiddenRect,
+                to: placement.targetRect
+            )
+        }
+        store.refreshItems()
+        DragDetector.shared.stopMonitoring()
+        installEscapeKeyMonitorIfNeeded()
+        startFinderFollow()
+    }
+
+    private func observeFinderAttachment() {
+        finderAttachmentObserver = FinderWindowTracker.shared.$activeFinderWindowRect
+            .dropFirst()
+            .sink { [weak self] finderRect in
+                guard let self else { return }
+                guard self.currentPlacement?.isFinderAttached == true else { return }
+
+                if let finderRect, let screen = self.screenContaining(finderRect) {
+                    let latestSnapshot = FinderWindowTracker.shared.activeFinderWindowSnapshot
+                    switch AttachedPanelLifecyclePolicy.decision(
+                        isFinderAttached: true,
+                        trackedSnapshot: self.attachedFinderWindowSnapshot,
+                        latestSnapshot: latestSnapshot
+                    ) {
+                    case .close:
+                        self.hidePanel()
+                        return
+                    case .ignore:
+                        return
+                    case .update(let snapshot):
+                        self.attachedFinderWindowSnapshot = snapshot
+                    }
+
+                    let updatedPlacement = PanelPlacement.attachedToFinder(
+                        finderRect: finderRect,
+                        panelSize: NSSize(width: Layout.panelWidth, height: Layout.panelHeight),
+                        visibleFrame: screen.visibleFrame,
+                        offset: Layout.panelOffset,
+                        revealInset: Layout.finderRevealInset,
+                        previewInset: Layout.finderPreviewInset
+                    )
+                    self.currentPlacement = updatedPlacement
+                    self.updatePanelLayout(for: updatedPlacement)
+                    self.updateAttachmentChrome(for: updatedPlacement)
+                    self.panel?.setFrame(updatedPlacement.targetRect, display: true, animate: false)
+                    self.logPlacement(source: "finderFollow", placement: updatedPlacement, finderRect: finderRect)
+                } else {
+                    switch AttachedPanelLifecyclePolicy.decision(
+                        isFinderAttached: true,
+                        trackedSnapshot: self.attachedFinderWindowSnapshot,
+                        latestSnapshot: nil
+                    ) {
+                    case .close:
+                        self.hidePanel()
+                    case .ignore, .update:
+                        break
+                    }
+                }
+            }
+    }
+
+    private func updatePanelLayout(for placement: PanelPlacement) {
+        hostingView?.rootView = makeContentView(height: placement.targetRect.height)
+    }
+
+    private func updateAttachmentChrome(for placement: PanelPlacement) {
+        edgePreviewView?.isHidden = !placement.isFinderAttached
+        edgePreviewView?.alphaValue = placement.isFinderAttached ? 1.0 : 0.0
+        edgePreviewView?.edge = placement.edge
+    }
+
+    private func makeContentView(height: CGFloat) -> AnyView {
+        AnyView(
+            StashContentView(
+                panelHeight: height,
+                onClose: { [weak self] in self?.hidePanel() }
+            )
+            .environmentObject(store)
+        )
+    }
+
+    private func logPlacement(source: StaticString, placement: PanelPlacement, finderRect: NSRect?) {
+        logger.debug(
+            "Resolved placement source=\(source, privacy: .public) finderAttached=\(placement.isFinderAttached, privacy: .public) finderRect=\(String(describing: finderRect), privacy: .public) targetRect=\(String(describing: placement.targetRect), privacy: .public) hiddenRect=\(String(describing: placement.hiddenRect), privacy: .public)"
+        )
+    }
+
+    private func startFinderFollow() {
+        stopFinderFollow()
+
+        guard currentPlacement?.isFinderAttached == true else { return }
+
+        finderFollowTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in
+            Task { @MainActor in
+                self.refreshFinderAttachment(preferredRect: self.attachedFinderWindowSnapshot?.rect)
+            }
+        }
+    }
+
+    private func stopFinderFollow() {
+        finderFollowTimer?.invalidate()
+        finderFollowTimer = nil
+    }
+
+    private func captureFinderAttachmentIfNeeded(for placement: PanelPlacement) {
+        guard placement.isFinderAttached else {
+            attachedFinderWindowSnapshot = nil
+            return
+        }
+
+        attachedFinderWindowSnapshot = FinderWindowTracker.shared.activeFinderWindowSnapshot
+    }
+
+    private func refreshFinderAttachment(preferredRect: NSRect?) {
+        if attachedFinderWindowSnapshot?.windowID != nil || !FinderWindowTracker.shared.isAccessibilityGranted {
+            _ = FinderWindowTracker.shared.refreshAttachedFinderWindowSnapshot(
+                windowID: attachedFinderWindowSnapshot?.windowID,
+                preferredRect: preferredRect
+            )
+        } else {
+            FinderWindowTracker.shared.updateActiveFinderWindowRect()
+        }
+    }
+
+    private func installEscapeKeyMonitorIfNeeded() {
+        guard escapeKeyMonitor == nil else { return }
+        escapeKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, self.panel?.isVisible == true else { return event }
+
+            switch AttachedPanelLifecyclePolicy.keyboardDecision(for: event.keyCode) {
+            case .close:
+                self.hidePanel()
+                return nil
+            case .ignore:
+                return event
+            }
+        }
+    }
+
+    private func removeEscapeKeyMonitor() {
+        guard let escapeKeyMonitor else { return }
+        NSEvent.removeMonitor(escapeKeyMonitor)
+        self.escapeKeyMonitor = nil
     }
 }

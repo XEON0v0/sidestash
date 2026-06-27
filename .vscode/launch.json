@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:FileStash}",
+            "name": "Debug FileStash",
+            "target": "FileStash",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug FileStash"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:FileStash}",
+            "name": "Release FileStash",
+            "target": "FileStash",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release FileStash"
+        }
+    ]
+}

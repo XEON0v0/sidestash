@@ -19,6 +19,10 @@ rm -rf "${APP_BUNDLE}"
 mkdir -p "${APP_BUNDLE}/Contents/MacOS"
 mkdir -p "${APP_BUNDLE}/Contents/Resources"
 
+echo "  Copying localization..."
+cp -R "${SCRIPT_DIR}/Sources/FileStash/en.lproj" "${APP_BUNDLE}/Contents/Resources/"
+cp -R "${SCRIPT_DIR}/Sources/FileStash/zh-Hans.lproj" "${APP_BUNDLE}/Contents/Resources/"
+
 cp "${RELEASE_BIN}" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
 
 echo "==> Writing Info.plist..."

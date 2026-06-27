@@ -185,7 +185,7 @@ class StashStore: ObservableObject {
 
     func stash(url sourceURL: URL) {
         guard !sourceURL.path.hasPrefix(stashDirectory.path) else {
-            print("Cannot stash a file already in stash: \(sourceURL)")
+            logger.info("Cannot stash a file already in stash: \(sourceURL)")
             return
         }
         ensureDirectoryExists()
@@ -205,7 +205,7 @@ class StashStore: ObservableObject {
                 }
                 stashSuccess = true
             } catch {
-                print("Failed to stash \(sourceURL): \(error)")
+                logger.error("Failed to stash \(sourceURL): \(error.localizedDescription)")
                 return
             }
         }
@@ -258,7 +258,7 @@ class StashStore: ObservableObject {
                 do {
                     try fileSystem.moveItem(at: item.url, to: restoreURL)
                 } catch {
-                    print("Failed to restore \(item.url) to \(restoreURL)")
+                    logger.error("Failed to restore \(item.url) to \(restoreURL)")
                 }
             }
             var metadata = self.loadMetadata()

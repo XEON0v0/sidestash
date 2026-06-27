@@ -98,3 +98,34 @@
 - `DispatchQueue.main.async` closure in `DraggableFileItemView` required `self.store` (explicit self) since `store` is an instance property captured in a non-`@MainActor` closure
 - AppDelegate property initialization order: `store` must be declared before `windowManager` since `windowManager` depends on it
 - Used `[weak self]` in `onDragDetected` closure capture to avoid retain cycle (though AppDelegate is effectively app-lifetime singleton)
+
+## T14 — Add .lproj copy to build_app.sh
+
+- Added `cp -R` for both `en.lproj` and `zh-Hans.lproj` from `Sources/FileStash/` into `Contents/Resources/` inside the .app bundle
+- Placed the copy commands right after `mkdir -p "${APP_BUNDLE}/Contents/Resources"` and before the binary copy
+- Verified: `./build_app.sh` runs cleanly, both `.lproj` dirs present in the built bundle
+
+## F3: Manual QA — 2026-04-30
+
+### Results
+- Release build: PASS (exit 0, 29.42s)
+- App bundle: PASS
+  - Binary: FileStash.app/Contents/MacOS/FileStash ✓
+  - en.lproj: 4 entries ✓
+  - zh-Hans.lproj: 4 entries ✓
+  - AppIcon.icns: generated ✓
+  - BUNDLE_ID: com.ray.FileStash ✓
+- Debug build: PASS (exit 0, 30.63s)
+- Test compilation: PASS (exit 0)
+- Git state: 2 commits, .gitignore with proper entries ✓
+- Localization: 4 entries per locale, no hardcoded Chinese in Swift ✓
+- LSP diagnostics: 0 errors across 10 files ✓
+
+## F4 — Scope Fidelity Check (2026-04-30)
+
+- VERDICT: REJECT — T11 missing MockFileSystemProvider (blocking), 4 tasks partially compliant
+- 10/15 fully compliant, 4 partial, 1 non-compliant
+- Cross-task contamination: CLEAN
+- Unaccounted files: 1 (TestHelpers.swift)
+- Key gaps: MockFileSystemProvider not created, 3 print() remain in StashStore, .attrib flag missing from file watcher, some magic numbers unextracted in StashContentView
+- Framework deviation: Tests use Swift Testing (`@Test`/`#expect`) not XCTest per plan spec

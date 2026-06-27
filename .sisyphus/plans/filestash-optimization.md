@@ -968,7 +968,7 @@ Max Concurrent: 5 (Wave 1)
   - Files: `Sources/FileStash/StashStore.swift`
   - Pre-commit: `swift build`
 
-- [ ] 14. NSLocalizedString infrastructure + string migration
+- [x] 14. NSLocalizedString infrastructure + string migration
 
   **What to do**:
   - Create `Sources/FileStash/en.lproj/Localizable.strings` with English translations
@@ -1036,7 +1036,7 @@ Max Concurrent: 5 (Wave 1)
   - Files: `Sources/FileStash/en.lproj/Localizable.strings`, `Sources/FileStash/zh-Hans.lproj/Localizable.strings`, `Sources/FileStash/AppDelegate.swift`, `Sources/FileStash/Views/StashContentView.swift`, `Package.swift`, `build_app.sh`
   - Pre-commit: `swift build && swift test`
 
-- [ ] 15. Fix Bundle ID + .gitignore + git init
+- [x] 15. Fix Bundle ID + .gitignore + git init
 
   **What to do**:
   - Change `BUNDLE_ID="com.yourname.FileStash"` in `build_app.sh` to a real identifier (e.g., `com.ray.FileStash` or ask user)
@@ -1099,19 +1099,19 @@ Max Concurrent: 5 (Wave 1)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
   Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
   Run `swift build` + `swift test`. Review all changed files for: force unwraps (!), empty catches, print() in prod (should be Logger), commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names. Verify no protocols exist for types that don't need mocking (only StashStore's file system should have a protocol).
   Output: `Build [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
   Start from clean state (`swift build -c release && ./build_app.sh`). Launch FileStash.app. Test: (1) Drag file from Finder → file appears in panel, (2) Drag file out → file restores to original location, (3) Drag same file again → collision-safe naming, (4) Right-click menu items work, (5) Panel drag handle moves window. Save screenshots.
   Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
   For each task: read "What to do", read actual diff. Verify 1:1 — everything in spec was built, nothing beyond spec was built. Check "Must NOT do" compliance. Detect cross-task contamination. Flag unaccounted changes.
   Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 

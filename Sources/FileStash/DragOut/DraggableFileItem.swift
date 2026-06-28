@@ -52,6 +52,7 @@ class DraggableFileItemView: NSView {
 
     private func commonInit() {
         wantsLayer = true
+        layer?.cornerRadius = FileStashSidebarStyle.rowCornerRadius
         layer?.backgroundColor = NSColor.clear.cgColor
 
         imageView = NSImageView()
@@ -60,8 +61,8 @@ class DraggableFileItemView: NSView {
         addSubview(imageView)
 
         label = NSTextField(labelWithString: "")
-        label.font = NSFont.systemFont(ofSize: Layout.labelFontSize)
-        label.textColor = NSColor.labelColor
+        label.font = NSFont.systemFont(ofSize: Layout.labelFontSize, weight: .medium)
+        label.textColor = NSColor.labelColor.withAlphaComponent(0.92)
         label.lineBreakMode = .byTruncatingTail
         label.maximumNumberOfLines = 1
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -96,14 +97,14 @@ class DraggableFileItemView: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         CATransaction.begin()
-        CATransaction.setAnimationDuration(0.2)
-        layer?.backgroundColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        CATransaction.setAnimationDuration(0.18)
+        layer?.backgroundColor = NSColor.white.withAlphaComponent(FileStashSidebarStyle.rowHoverFillAlpha).cgColor
         CATransaction.commit()
     }
 
     override func mouseExited(with event: NSEvent) {
         CATransaction.begin()
-        CATransaction.setAnimationDuration(0.2)
+        CATransaction.setAnimationDuration(0.18)
         layer?.backgroundColor = NSColor.clear.cgColor
         CATransaction.commit()
     }

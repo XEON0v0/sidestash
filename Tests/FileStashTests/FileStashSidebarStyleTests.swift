@@ -33,4 +33,9 @@ struct FileStashSidebarStyleTests {
         #expect(FileStashSidebarChromePolicy.paneBorderWidth == 1)
         #expect(FileStashSidebarChromePolicy.paneShadowOffsetY == -2)
     }
+
+    @Test func rowHover_keepsFillLighterThanHeaderGlass() {
+        #expect(FileStashSidebarStyle.rowHoverFillAlpha < 0.12)
+        #expect(FileStashSidebarStyle.rowCornerRadius == 10)
+    }
 }

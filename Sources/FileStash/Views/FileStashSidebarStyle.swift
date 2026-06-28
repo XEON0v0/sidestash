@@ -15,6 +15,8 @@ enum FileStashSidebarStyle {
     static let headerShadowOpacity: Float = 0.08
 
     static let rowHeight: CGFloat = 39
+    static let rowCornerRadius: CGFloat = 10
+    static let rowHoverFillAlpha: CGFloat = 0.09
     static let emptyIconSize: CGFloat = 44
     static let emptySpacing: CGFloat = 10
 }

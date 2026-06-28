@@ -28,4 +28,9 @@ struct FileStashSidebarStyleTests {
         #expect(FileStashSidebarChromePolicy.headerContainerHeight == 54)
         #expect(FileStashSidebarChromePolicy.closeButtonSize == 18)
     }
+
+    @Test func paneChrome_helpers_lockBorderAndShadowGeometry() {
+        #expect(FileStashSidebarChromePolicy.paneBorderWidth == 1)
+        #expect(FileStashSidebarChromePolicy.paneShadowOffsetY == -2)
+    }
 }

@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 struct GlassBackgroundView: NSViewRepresentable {
-    var cornerRadius: CGFloat = 16
+    var cornerRadius: CGFloat = FileStashSidebarStyle.paneCornerRadius
 
     func makeNSView(context: Context) -> NSView {
         if #available(macOS 26, *) {
@@ -12,7 +12,7 @@ struct GlassBackgroundView: NSViewRepresentable {
             return glassView
         } else {
             let visualEffectView = NSVisualEffectView()
-            visualEffectView.material = .hudWindow
+            visualEffectView.material = .sidebar
             visualEffectView.blendingMode = .withinWindow
             visualEffectView.state = .active
             visualEffectView.wantsLayer = true

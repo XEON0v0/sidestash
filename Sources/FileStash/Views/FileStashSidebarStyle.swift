@@ -31,4 +31,12 @@ enum FileStashSidebarChromePolicy {
     static var closeButtonSize: CGFloat {
         18
     }
+
+    static var paneBorderWidth: CGFloat {
+        1
+    }
+
+    static var paneShadowOffsetY: CGFloat {
+        -2
+    }
 }

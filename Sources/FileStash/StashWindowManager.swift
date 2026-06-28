@@ -166,27 +166,34 @@ class StashWindowManager {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
         panel.isMovableByWindowBackground = false
-        panel.hasShadow = true
+        panel.hasShadow = false
         panel.backgroundColor = .clear
 
         let hostingView = NSHostingView(rootView: makeContentView(height: panelRect.height))
 
         let containerView = NSView(frame: panelRect)
         containerView.wantsLayer = true
+        containerView.layer?.cornerRadius = FileStashSidebarStyle.paneCornerRadius
+        containerView.layer?.borderWidth = FileStashSidebarChromePolicy.paneBorderWidth
+        containerView.layer?.borderColor = NSColor.white.withAlphaComponent(FileStashSidebarStyle.paneBorderAlpha).cgColor
+        containerView.layer?.shadowColor = NSColor.black.cgColor
+        containerView.layer?.shadowOpacity = FileStashSidebarStyle.paneShadowOpacity
+        containerView.layer?.shadowRadius = FileStashSidebarStyle.paneShadowBlur
+        containerView.layer?.shadowOffset = NSSize(width: 0, height: FileStashSidebarChromePolicy.paneShadowOffsetY)
 
         let glassView: NSView = {
             if #available(macOS 26, *) {
                 let gv = NSGlassEffectView()
-                gv.cornerRadius = 16
+                gv.cornerRadius = FileStashSidebarStyle.paneCornerRadius
                 gv.style = .regular
                 return gv
             } else {
                 let vev = NSVisualEffectView()
-                vev.material = .hudWindow
+                vev.material = .sidebar
                 vev.blendingMode = .withinWindow
                 vev.state = .active
                 vev.wantsLayer = true
-                vev.layer?.cornerRadius = 16
+                vev.layer?.cornerRadius = FileStashSidebarStyle.paneCornerRadius
                 return vev
             }
         }()
@@ -197,10 +204,15 @@ class StashWindowManager {
         let dropZone = DropZoneNSView(frame: containerView.bounds)
         dropZone.store = store
         dropZone.autoresizingMask = [.width, .height]
+        dropZone.wantsLayer = true
+        dropZone.layer?.cornerRadius = FileStashSidebarStyle.paneCornerRadius
+        dropZone.layer?.masksToBounds = true
         containerView.addSubview(dropZone)
 
         hostingView.frame = dropZone.bounds
         hostingView.autoresizingMask = [.width, .height]
+        hostingView.wantsLayer = true
+        hostingView.layer?.cornerRadius = FileStashSidebarStyle.paneCornerRadius
         dropZone.addSubview(hostingView)
 
         let edgePreviewView = PanelEdgePreviewView(frame: containerView.bounds)

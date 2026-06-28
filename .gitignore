@@ -1,7 +1,11 @@
 .build/
 *.xcodeproj/
 *.xcworkspace/
-FileStash.app/
+SideStash.app/
 DerivedData/
 .DS_Store
 *.swp
+.sisyphus/
+.superpowers/
+.vscode/
+docs/superpowers/

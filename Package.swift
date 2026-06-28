@@ -2,19 +2,19 @@
 import PackageDescription
 
 let package = Package(
-    name: "FileStash",
+    name: "SideStash",
     defaultLocalization: "en",
     platforms: [
         .macOS(.v14)
     ],
     targets: [
         .executableTarget(
-            name: "FileStash",
+            name: "SideStash",
             resources: [.process("en.lproj"), .process("zh-Hans.lproj")]
         ),
         .testTarget(
-            name: "FileStashTests",
-            dependencies: ["FileStash"],
+            name: "SideStashTests",
+            dependencies: ["SideStash"],
             swiftSettings: [
                 .unsafeFlags(["-F", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"]),
             ],

@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-APP_NAME="FileStash"
-BUNDLE_ID="com.ray.FileStash"
+APP_NAME="SideStash"
+BUNDLE_ID="app.sidestash.SideStash"
 VERSION="1.0.0"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,8 +20,8 @@ mkdir -p "${APP_BUNDLE}/Contents/MacOS"
 mkdir -p "${APP_BUNDLE}/Contents/Resources"
 
 echo "  Copying localization..."
-cp -R "${SCRIPT_DIR}/Sources/FileStash/en.lproj" "${APP_BUNDLE}/Contents/Resources/"
-cp -R "${SCRIPT_DIR}/Sources/FileStash/zh-Hans.lproj" "${APP_BUNDLE}/Contents/Resources/"
+cp -R "${SCRIPT_DIR}/Sources/SideStash/en.lproj" "${APP_BUNDLE}/Contents/Resources/"
+cp -R "${SCRIPT_DIR}/Sources/SideStash/zh-Hans.lproj" "${APP_BUNDLE}/Contents/Resources/"
 
 cp "${RELEASE_BIN}" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
 
@@ -62,43 +62,167 @@ SWIFT_SCRIPT="${BUILD_DIR}/generate_icon.swift"
 cat > "${SWIFT_SCRIPT}" <<'SWIFT'
 import AppKit
 
-let args = CommandLine.arguments
-let symbolName = args.count > 1 ? args[1] : "tray.and.arrow.up.fill"
-let outputDir = args.count > 2 ? args[2] : "."
+let outputDir = CommandLine.arguments.dropFirst().first ?? "."
 
 let size = NSSize(width: 1024, height: 1024)
+let canvasRect = NSRect(origin: .zero, size: size)
 
-let config = NSImage.SymbolConfiguration(pointSize: 700, weight: .regular)
-    .applying(NSImage.SymbolConfiguration(hierarchicalColor: .systemBlue))
-
-guard let symbolImage = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-    .withSymbolConfiguration(config) else {
-    print("Failed to load SF Symbol")
-    exit(1)
+extension NSColor {
+    convenience init(hex: Int, alpha: CGFloat = 1.0) {
+        self.init(
+            srgbRed: CGFloat((hex >> 16) & 0xFF) / 255.0,
+            green: CGFloat((hex >> 8) & 0xFF) / 255.0,
+            blue: CGFloat(hex & 0xFF) / 255.0,
+            alpha: alpha
+        )
+    }
 }
 
-symbolImage.isTemplate = false
+func roundedPath(_ rect: NSRect, radius: CGFloat) -> NSBezierPath {
+    NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
+}
+
+func withShadow(color: NSColor, blur: CGFloat, offset: NSSize, draw: () -> Void) {
+    NSGraphicsContext.saveGraphicsState()
+    let shadow = NSShadow()
+    shadow.shadowColor = color
+    shadow.shadowBlurRadius = blur
+    shadow.shadowOffset = offset
+    shadow.set()
+    draw()
+    NSGraphicsContext.restoreGraphicsState()
+}
+
+func fill(_ path: NSBezierPath, color: NSColor) {
+    color.setFill()
+    path.fill()
+}
+
+func stroke(_ path: NSBezierPath, color: NSColor, width: CGFloat) {
+    color.setStroke()
+    path.lineWidth = width
+    path.stroke()
+}
+
+func drawTrafficLight(at center: NSPoint, color: NSColor) {
+    let dotRect = NSRect(x: center.x - 10, y: center.y - 10, width: 20, height: 20)
+    fill(NSBezierPath(ovalIn: dotRect), color: color)
+}
+
+func drawFolder(in rect: NSRect) {
+    let backRect = NSRect(x: rect.minX + 8, y: rect.minY + 18, width: rect.width - 16, height: rect.height - 18)
+    let backPath = roundedPath(backRect, radius: 28)
+    fill(backPath, color: NSColor(hex: 0x61B7FF))
+
+    let tabPath = NSBezierPath()
+    tabPath.move(to: NSPoint(x: rect.minX + 14, y: rect.midY + 22))
+    tabPath.line(to: NSPoint(x: rect.minX + 94, y: rect.midY + 22))
+    tabPath.curve(
+        to: NSPoint(x: rect.minX + 122, y: rect.midY + 46),
+        controlPoint1: NSPoint(x: rect.minX + 104, y: rect.midY + 22),
+        controlPoint2: NSPoint(x: rect.minX + 116, y: rect.midY + 32)
+    )
+    tabPath.line(to: NSPoint(x: rect.maxX - 22, y: rect.midY + 46))
+    tabPath.curve(
+        to: NSPoint(x: rect.maxX - 8, y: rect.midY + 32),
+        controlPoint1: NSPoint(x: rect.maxX - 14, y: rect.midY + 46),
+        controlPoint2: NSPoint(x: rect.maxX - 8, y: rect.midY + 40)
+    )
+    tabPath.line(to: NSPoint(x: rect.maxX - 8, y: rect.minY + 44))
+    tabPath.line(to: NSPoint(x: rect.minX + 14, y: rect.minY + 44))
+    tabPath.close()
+    fill(tabPath, color: NSColor(hex: 0x8FD3FF))
+
+    let frontPath = roundedPath(NSRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height - 22), radius: 32)
+    fill(frontPath, color: NSColor(hex: 0x2E94FF))
+
+    let highlight = roundedPath(NSRect(x: rect.minX + 18, y: rect.minY + 64, width: rect.width - 36, height: 22), radius: 11)
+    fill(highlight, color: NSColor.white.withAlphaComponent(0.22))
+}
+
+func drawFileChip(in rect: NSRect, tint: NSColor) {
+    let chipPath = roundedPath(rect, radius: 28)
+    fill(chipPath, color: tint)
+
+    let iconRect = NSRect(x: rect.minX + 18, y: rect.minY + 18, width: 42, height: 52)
+    let pagePath = NSBezierPath()
+    pagePath.move(to: NSPoint(x: iconRect.minX + 8, y: iconRect.minY))
+    pagePath.line(to: NSPoint(x: iconRect.maxX - 10, y: iconRect.minY))
+    pagePath.line(to: NSPoint(x: iconRect.maxX, y: iconRect.minY + 12))
+    pagePath.line(to: NSPoint(x: iconRect.maxX, y: iconRect.maxY))
+    pagePath.line(to: NSPoint(x: iconRect.minX + 8, y: iconRect.maxY))
+    pagePath.curve(
+        to: NSPoint(x: iconRect.minX, y: iconRect.maxY - 8),
+        controlPoint1: NSPoint(x: iconRect.minX + 3, y: iconRect.maxY),
+        controlPoint2: NSPoint(x: iconRect.minX, y: iconRect.maxY - 3)
+    )
+    pagePath.line(to: NSPoint(x: iconRect.minX, y: iconRect.minY + 8))
+    pagePath.curve(
+        to: NSPoint(x: iconRect.minX + 8, y: iconRect.minY),
+        controlPoint1: NSPoint(x: iconRect.minX, y: iconRect.minY + 3),
+        controlPoint2: NSPoint(x: iconRect.minX + 3, y: iconRect.minY)
+    )
+    pagePath.close()
+    fill(pagePath, color: NSColor.white.withAlphaComponent(0.92))
+
+    let foldPath = NSBezierPath()
+    foldPath.move(to: NSPoint(x: iconRect.maxX - 10, y: iconRect.minY))
+    foldPath.line(to: NSPoint(x: iconRect.maxX - 10, y: iconRect.minY + 12))
+    foldPath.line(to: NSPoint(x: iconRect.maxX, y: iconRect.minY + 12))
+    foldPath.close()
+    fill(foldPath, color: NSColor.white.withAlphaComponent(0.72))
+
+    for index in 0..<2 {
+        let lineRect = NSRect(x: rect.minX + 76, y: rect.minY + 46 - CGFloat(index * 18), width: rect.width - 102, height: 10)
+        fill(roundedPath(lineRect, radius: 5), color: NSColor(hex: 0x1D4E89, alpha: 0.18))
+    }
+}
 
 let composed = NSImage(size: size)
 composed.lockFocus()
-NSColor.systemBlue.setFill()
-let rect = NSRect(origin: .zero, size: size)
-NSBezierPath(roundedRect: rect, xRadius: 230, yRadius: 230).fill()
 
-let aspectRatio = symbolImage.size.width / symbolImage.size.height
-var drawSize = size
-if aspectRatio > 1 {
-    drawSize.height = size.width / aspectRatio
-} else {
-    drawSize.width = size.height * aspectRatio
+let backgroundRect = canvasRect.insetBy(dx: 36, dy: 36)
+let backgroundPath = roundedPath(backgroundRect, radius: 220)
+backgroundPath.addClip()
+NSGradient(colors: [NSColor(hex: 0x0A7DFF), NSColor(hex: 0x25C7F2)])?.draw(in: backgroundPath, angle: 90)
+fill(NSBezierPath(ovalIn: NSRect(x: 120, y: 610, width: 500, height: 240)), color: NSColor.white.withAlphaComponent(0.16))
+fill(NSBezierPath(ovalIn: NSRect(x: 320, y: 40, width: 560, height: 260)), color: NSColor(hex: 0x0655C7, alpha: 0.18))
+
+let drawerRect = NSRect(x: 560, y: 248, width: 284, height: 500)
+withShadow(color: NSColor.black.withAlphaComponent(0.18), blur: 40, offset: NSSize(width: 0, height: -18)) {
+    fill(roundedPath(drawerRect, radius: 66), color: NSColor(hex: 0xF5FBFF, alpha: 0.94))
 }
-let drawRect = NSRect(
-    x: (size.width - drawSize.width) / 2,
-    y: (size.height - drawSize.height) / 2,
-    width: drawSize.width,
-    height: drawSize.height
-)
-symbolImage.draw(in: drawRect)
+stroke(roundedPath(drawerRect, radius: 66), color: NSColor.white.withAlphaComponent(0.48), width: 4)
+fill(roundedPath(NSRect(x: drawerRect.minX + 18, y: drawerRect.maxY - 34, width: 48, height: 8), radius: 4), color: NSColor(hex: 0x1578F6, alpha: 0.18))
+drawFileChip(in: NSRect(x: drawerRect.minX + 28, y: drawerRect.maxY - 150, width: drawerRect.width - 56, height: 88), tint: NSColor(hex: 0xE8F3FF))
+drawFileChip(in: NSRect(x: drawerRect.minX + 28, y: drawerRect.maxY - 256, width: drawerRect.width - 56, height: 88), tint: NSColor(hex: 0xFFF0DB))
+drawFileChip(in: NSRect(x: drawerRect.minX + 28, y: drawerRect.maxY - 362, width: drawerRect.width - 56, height: 88), tint: NSColor(hex: 0xE6FBF7))
+
+let windowRect = NSRect(x: 128, y: 164, width: 548, height: 676)
+withShadow(color: NSColor.black.withAlphaComponent(0.2), blur: 42, offset: NSSize(width: 0, height: -20)) {
+    fill(roundedPath(windowRect, radius: 84), color: NSColor(hex: 0xFDFEFF, alpha: 0.98))
+}
+
+let windowClip = roundedPath(windowRect, radius: 84)
+windowClip.addClip()
+fill(NSBezierPath(rect: NSRect(x: windowRect.minX, y: windowRect.maxY - 102, width: windowRect.width, height: 102)), color: NSColor(hex: 0xF7FAFF))
+fill(NSBezierPath(rect: NSRect(x: windowRect.minX, y: windowRect.minY, width: 156, height: windowRect.height)), color: NSColor(hex: 0xF1F7FF))
+fill(roundedPath(NSRect(x: windowRect.minX + 186, y: windowRect.maxY - 196, width: 268, height: 24), radius: 12), color: NSColor(hex: 0xDCEBFB))
+fill(roundedPath(NSRect(x: windowRect.minX + 186, y: windowRect.maxY - 242, width: 174, height: 16), radius: 8), color: NSColor(hex: 0xE7F1FC))
+fill(roundedPath(NSRect(x: windowRect.minX + 34, y: windowRect.maxY - 188, width: 84, height: 18), radius: 9), color: NSColor(hex: 0xD1E6FF))
+fill(roundedPath(NSRect(x: windowRect.minX + 34, y: windowRect.maxY - 224, width: 64, height: 14), radius: 7), color: NSColor(hex: 0xDEEEFF))
+drawTrafficLight(at: NSPoint(x: windowRect.minX + 44, y: windowRect.maxY - 50), color: NSColor(hex: 0xFF655D))
+drawTrafficLight(at: NSPoint(x: windowRect.minX + 78, y: windowRect.maxY - 50), color: NSColor(hex: 0xFFBD45))
+drawTrafficLight(at: NSPoint(x: windowRect.minX + 112, y: windowRect.maxY - 50), color: NSColor(hex: 0x35C759))
+
+drawFolder(in: NSRect(x: windowRect.minX + 194, y: windowRect.minY + 218, width: 248, height: 176))
+
+fill(roundedPath(NSRect(x: windowRect.minX + 194, y: windowRect.minY + 150, width: 186, height: 18), radius: 9), color: NSColor(hex: 0xD7E8FB))
+fill(roundedPath(NSRect(x: windowRect.minX + 194, y: windowRect.minY + 118, width: 134, height: 18), radius: 9), color: NSColor(hex: 0xE4EFFB))
+fill(roundedPath(NSRect(x: windowRect.minX + 194, y: windowRect.minY + 86, width: 208, height: 18), radius: 9), color: NSColor(hex: 0xEAF3FD))
+
+stroke(roundedPath(windowRect, radius: 84), color: NSColor.white.withAlphaComponent(0.58), width: 4)
+
 composed.unlockFocus()
 
 guard let tiffData = composed.tiffRepresentation,
@@ -113,7 +237,7 @@ try pngData.write(to: outputURL)
 print("Generated icon at \(outputURL.path)")
 SWIFT
 
-if swift "${SWIFT_SCRIPT}" "tray.and.arrow.up.fill" "${ICONSET_DIR}" > /dev/null 2>&1; then
+if swift "${SWIFT_SCRIPT}" "${ICONSET_DIR}" > /dev/null 2>&1; then
     if [ -f "${ICONSET_DIR}/icon_1024.png" ]; then
         for size in 16 32 128 256 512; do
             sips -Z ${size} "${ICONSET_DIR}/icon_1024.png" --out "${ICONSET_DIR}/icon_${size}x${size}.png" > /dev/null 2>&1

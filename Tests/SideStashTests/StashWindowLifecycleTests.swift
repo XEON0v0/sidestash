@@ -1,0 +1,59 @@
+import AppKit
+import Testing
+@testable import SideStash
+
+struct StashWindowLifecycleTests {
+    @Test func edgePreviewChrome_onlyShowsDuringAttachedRevealAnimation() {
+        #expect(AttachedPanelChromePolicy.isEdgePreviewVisible(isFinderAttached: true, isRevealAnimating: true))
+        #expect(!AttachedPanelChromePolicy.isEdgePreviewVisible(isFinderAttached: true, isRevealAnimating: false))
+        #expect(!AttachedPanelChromePolicy.isEdgePreviewVisible(isFinderAttached: false, isRevealAnimating: true))
+    }
+
+    @Test func attachedPanelClosesWhenTrackedFinderWindowDisappears() {
+        let decision = AttachedPanelLifecyclePolicy.decision(
+            isFinderAttached: true,
+            trackedSnapshot: FinderWindowSnapshot(windowID: 202, rect: NSRect(x: 226, y: 254, width: 920, height: 543)),
+            latestSnapshot: nil
+        )
+
+        #expect(decision == .close)
+    }
+
+    @Test func attachedPanelStaysClosedToOtherFinderWindowWhenTrackedWindowChanges() {
+        let decision = AttachedPanelLifecyclePolicy.decision(
+            isFinderAttached: true,
+            trackedSnapshot: FinderWindowSnapshot(windowID: 202, rect: NSRect(x: 226, y: 254, width: 920, height: 543)),
+            latestSnapshot: FinderWindowSnapshot(windowID: 101, rect: NSRect(x: 20, y: 736, width: 160, height: 180))
+        )
+
+        #expect(decision == .close)
+    }
+
+    @Test func attachedPanelUpdatesPlacementWhenTrackedFinderWindowStillMatches() {
+        let latest = FinderWindowSnapshot(windowID: 202, rect: NSRect(x: 240, y: 230, width: 880, height: 520))
+
+        let decision = AttachedPanelLifecyclePolicy.decision(
+            isFinderAttached: true,
+            trackedSnapshot: FinderWindowSnapshot(windowID: 202, rect: NSRect(x: 226, y: 254, width: 920, height: 543)),
+            latestSnapshot: latest
+        )
+
+        #expect(decision == .update(latest))
+    }
+
+    @Test func escapeRequestsClose() {
+        #expect(AttachedPanelLifecyclePolicy.keyboardDecision(for: 53) == .close)
+    }
+
+    @Test func nonEscapeKeyDoesNothing() {
+        #expect(AttachedPanelLifecyclePolicy.keyboardDecision(for: 49) == .ignore)
+    }
+
+    @Test func manualCloseClearsTrackedSnapshot() {
+        let state = AttachedPanelLifecyclePolicy.resetTrackingStateAfterManualClose(
+            trackedSnapshot: FinderWindowSnapshot(windowID: 202, rect: NSRect(x: 226, y: 254, width: 920, height: 543))
+        )
+
+        #expect(state == nil)
+    }
+}

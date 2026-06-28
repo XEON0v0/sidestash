@@ -1,4 +1,4 @@
-# FileStash — Agent Guide
+# SideStash — Agent Guide
 
 ## Build & Run
 
@@ -10,12 +10,13 @@ swift build -c release
 ./build_app.sh
 
 # Open the bundled app
-open FileStash.app
+open SideStash.app
 ```
 
 - **Swift 6.2** — uses `swift-tools-version: 5.9`, targets `macOS 14+`
 - No xcodeproj — SPM-only. `Package.swift` has a single `.executableTarget`
-- No tests exist. No CI. No linting config.
+- Tests exist under `Tests/SideStashTests`; run them with `swift test`.
+- No CI. No linting config.
 
 ## Architecture
 
@@ -23,11 +24,11 @@ A menu-bar-only app that acts as a temporary file drop zone. Files dragged in fr
 
 | File | Role |
 |---|---|
-| `FileStashApp.swift` | `@main` — adapts `AppDelegate`, Scene is `Settings { EmptyView() }` |
+| `SideStashApp.swift` | `@main` — adapts `AppDelegate`, Scene is `Settings { EmptyView() }` |
 | `AppDelegate.swift` | Sets up `NSStatusItem` (menu bar icon), starts global drag detector, handles right-click context menu |
-| `StashStore.swift` | `@MainActor ObservableObject` — singleton managing files in `~/Library/Application Support/FileStash/Stash/` |
+| `StashStore.swift` | `@MainActor ObservableObject` — singleton managing files in `~/Library/Application Support/SideStash/Stash/` |
 | `StashWindowManager.swift` | Manages the floating `NSPanel` — borderless, non-activating, `.floating` level |
-| `Services/DragDetector.swift` | Global mouse event monitor — triggers panel near mouse when Finder drag exceeds 12px threshold within 1s |
+| `Services/DragDetector.swift` | Global mouse event monitor — triggers panel near mouse when Finder drag exceeds 40px threshold within 2s |
 | `Views/StashContentView.swift` | Main panel UI — header with custom drag handle, file grid, empty state |
 | `Views/FileGridItem.swift` | SwiftUI wrapper for `DraggableFileItem` |
 | `Views/DropZoneView.swift` | Root `NSView` of panel — registers `.fileURL` drag types, hands to `StashStore` |
@@ -54,7 +55,7 @@ A menu-bar-only app that acts as a temporary file drop zone. Files dragged in fr
 
 ### Global drag detection
 - Only activates when `com.apple.finder` is the frontmost app
-- 12px threshold, 1s timeout, 0.03s polling interval
+- 40px threshold, 2s timeout, 0.03s polling interval
 
 ## Gotchas
 
@@ -62,6 +63,6 @@ A menu-bar-only app that acts as a temporary file drop zone. Files dragged in fr
 - **No dock icon** — Info.plist sets `LSUIElement = true`; app only shows in menu bar
 - **No Xcode needed** — build with bare `swift build`; `build_app.sh` generates the `.app` bundle structure manually
 - **No dependencies** — zero external packages, pure Foundation + AppKit + SwiftUI
-- **Not a git repo** — needs `git init` before any git operations
+- **Git repo exists** — check `git status` before editing because generated and agent-workflow artifacts may be present locally.
 - **`NSPanel` config** — `.borderless | .nonactivatingPanel`, `.floating` level, `canJoinAllSpaces`, does not hide on deactivate. Changing these breaks the floating-drop-zone UX.
 - **`StashStore` is `@MainActor`** — all mutations must be on main actor. Both SwiftUI views (via `@EnvironmentObject`) and AppKit callers (from drag delegates) already run on main.

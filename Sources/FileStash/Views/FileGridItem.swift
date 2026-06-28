@@ -6,6 +6,6 @@ struct FileGridItem: View {
 
     var body: some View {
         DraggableFileItem(item: item, store: store)
-            .frame(height: 38)
+            .frame(height: FileStashSidebarStyle.rowHeight)
     }
 }

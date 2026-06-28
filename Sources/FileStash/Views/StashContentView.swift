@@ -6,23 +6,24 @@ struct StashContentView: View {
     var onClose: (() -> Void)?
 
     private enum Layout {
-        static let closeButtonSize: CGFloat = 18
-        static let closeButtonFontSize: CGFloat = 11
-        static let headerFontSize: CGFloat = 14
-        static let headerPadding: CGFloat = 16
-        static let headerVerticalPadding: CGFloat = 12
+        static let headerTitleFontSize: CGFloat = 13
+        static let headerCloseFontSize: CGFloat = 11
+        static let headerInternalSpacing: CGFloat = 10
+        static let headerHorizontalPadding: CGFloat = 12
+        static let headerShadowRadius: CGFloat = 12
+        static let headerShadowYOffset: CGFloat = 4
+        static let emptyStateBottomPadding: CGFloat = 18
+        static let emptyStateFontSize: CGFloat = 14
     }
 
     var body: some View {
-        ZStack {
-            GlassBackgroundView()
+        ZStack(alignment: .top) {
+            GlassBackgroundView(cornerRadius: FileStashSidebarStyle.paneCornerRadius)
                 .allowsHitTesting(false)
 
             VStack(spacing: 0) {
-                header
-
-                Divider()
-                    .background(Color.white.opacity(0.2))
+                Color.clear
+                    .frame(height: FileStashSidebarChromePolicy.headerContainerHeight)
 
                 if store.items.isEmpty {
                     emptyState
@@ -30,33 +31,45 @@ struct StashContentView: View {
                     fileGrid
                 }
             }
+
+            floatingHeader
+                .padding(.top, FileStashSidebarStyle.headerTopInset)
+                .padding(.horizontal, FileStashSidebarStyle.headerHorizontalInset)
         }
         .frame(width: 320, height: panelHeight)
     }
 
-    private var header: some View {
-        HStack {
+    private var floatingHeader: some View {
+        HStack(spacing: Layout.headerInternalSpacing) {
             Text("FileStash")
-                .font(.system(size: Layout.headerFontSize, weight: .semibold))
-                .foregroundColor(.primary)
+                .font(.system(size: Layout.headerTitleFontSize, weight: .semibold))
+                .foregroundStyle(.primary.opacity(0.96))
             Spacer()
+
             Button(action: {
                 onClose?()
             }) {
                 Image(systemName: "xmark")
-                    .font(.system(size: Layout.closeButtonFontSize, weight: .bold))
-                    .foregroundColor(.secondary)
-                    .frame(width: Layout.closeButtonSize, height: Layout.closeButtonSize)
-                    .background(Color.white.opacity(0.1))
-                    .clipShape(Circle())
+                    .font(.system(size: Layout.headerCloseFontSize, weight: .semibold))
+                    .foregroundStyle(.secondary.opacity(0.9))
+                    .frame(
+                        width: FileStashSidebarChromePolicy.closeButtonSize,
+                        height: FileStashSidebarChromePolicy.closeButtonSize
+                    )
             }
-            .buttonStyle(PlainButtonStyle())
+            .buttonStyle(.plain)
         }
-        .padding(.horizontal, Layout.headerPadding)
-        .padding(.vertical, Layout.headerVerticalPadding)
+        .padding(.horizontal, Layout.headerHorizontalPadding)
+        .frame(height: FileStashSidebarStyle.headerHeight)
         .background(
             WindowDragHandle()
-                .background(Color.white.opacity(0.05))
+                .background(Color.white.opacity(FileStashSidebarStyle.headerBackgroundAlpha))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: FileStashSidebarStyle.headerCornerRadius, style: .continuous))
+        .shadow(
+            color: .black.opacity(CGFloat(FileStashSidebarStyle.headerShadowOpacity)),
+            radius: Layout.headerShadowRadius,
+            y: Layout.headerShadowYOffset
         )
     }
 
@@ -74,15 +87,16 @@ struct StashContentView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: FileStashSidebarStyle.emptySpacing) {
             Image(systemName: "tray.and.arrow.down")
-                .font(.system(size: 48))
-                .foregroundColor(.secondary)
+                .font(.system(size: FileStashSidebarStyle.emptyIconSize))
+                .foregroundStyle(.secondary.opacity(0.72))
             Text(NSLocalizedString("empty_state.drag_here", comment: "Empty state instruction"))
-                .font(.system(size: 14))
-                .foregroundColor(.secondary)
+                .font(.system(size: Layout.emptyStateFontSize, weight: .medium))
+                .foregroundStyle(.secondary.opacity(0.82))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.bottom, Layout.emptyStateBottomPadding)
     }
 }
 

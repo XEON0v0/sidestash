@@ -23,4 +23,12 @@ enum FileStashSidebarChromePolicy {
     static var contentTopInset: CGFloat {
         FileStashSidebarStyle.headerTopInset + FileStashSidebarStyle.headerHeight + 6
     }
+
+    static var headerContainerHeight: CGFloat {
+        54
+    }
+
+    static var closeButtonSize: CGFloat {
+        18
+    }
 }

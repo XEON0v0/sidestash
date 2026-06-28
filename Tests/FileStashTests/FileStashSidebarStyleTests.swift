@@ -23,4 +23,9 @@ struct FileStashSidebarStyleTests {
         #expect(FileStashSidebarStyle.emptyIconSize < 48)
         #expect(FileStashSidebarChromePolicy.contentTopInset > FileStashSidebarStyle.headerHeight)
     }
+
+    @Test func headerHelpers_matchBalancedGlassGeometry() {
+        #expect(FileStashSidebarChromePolicy.headerContainerHeight == 54)
+        #expect(FileStashSidebarChromePolicy.closeButtonSize == 18)
+    }
 }

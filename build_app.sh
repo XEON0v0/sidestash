@@ -47,6 +47,8 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" <<EOF
     <string>${VERSION}</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>SideStash needs access to Finder to find the current Finder folder for moving stashed files.</string>
     <key>LSUIElement</key>
     <true/>
 </dict>

@@ -248,6 +248,44 @@ struct StashStoreTests {
         #expect(loadMetadata(in: context.stashDirectory)["trash_me.txt"] == nil)
     }
 
+    @Test func trashAll_trashesEveryItemAndClearsMetadata() {
+        let context = makeStore()
+        let store = context.store
+        let sourceDir = makeTempDir()
+        let fileA = makeTempFile(named: "trash_all_a.txt", in: sourceDir, content: "a")
+        let fileB = makeTempFile(named: "trash_all_b.txt", in: sourceDir, content: "b")
+
+        defer {
+            removeDir(context.stashDirectory)
+            removeDir(sourceDir)
+        }
+
+        store.stash(url: fileA)
+        store.stash(url: fileB)
+
+        let result = store.trashAll()
+
+        #expect(result.attemptedCount == 2)
+        #expect(result.successCount == 2)
+        #expect(result.failureCount == 0)
+        #expect(store.items.isEmpty)
+        #expect(loadMetadata(in: context.stashDirectory).isEmpty)
+    }
+
+    @Test func trashAll_emptyStashReturnsZeroResult() {
+        let context = makeStore()
+        let store = context.store
+
+        defer { removeDir(context.stashDirectory) }
+
+        let result = store.trashAll()
+
+        #expect(result.attemptedCount == 0)
+        #expect(result.successCount == 0)
+        #expect(result.failureCount == 0)
+        #expect(store.items.isEmpty)
+    }
+
     @Test func restoreToOriginal_missingParentDirectory_recreatesDirectoryAndMovesFileBack() {
         let context = makeStore()
         let store = context.store
@@ -276,6 +314,58 @@ struct StashStoreTests {
         #expect(loadMetadata(in: context.stashDirectory)["restore_me.txt"] == nil)
     }
 
+    @Test func restoreAllToOriginal_restoresItemsToMultipleOriginalFolders() {
+        let context = makeStore()
+        let store = context.store
+        let dirA = makeTempDir()
+        let dirB = makeTempDir()
+        let fileA = makeTempFile(named: "restore_all_a.txt", in: dirA, content: "a")
+        let fileB = makeTempFile(named: "restore_all_b.txt", in: dirB, content: "b")
+
+        defer {
+            removeDir(context.stashDirectory)
+            removeDir(dirA)
+            removeDir(dirB)
+        }
+
+        store.stash(url: fileA)
+        store.stash(url: fileB)
+
+        let result = store.restoreAllToOriginal()
+
+        #expect(result.attemptedCount == 2)
+        #expect(result.successCount == 2)
+        #expect(result.failureCount == 0)
+        #expect(fileExists(at: fileA))
+        #expect(fileExists(at: fileB))
+        #expect(store.items.isEmpty)
+        #expect(loadMetadata(in: context.stashDirectory).isEmpty)
+    }
+
+    @Test func restoreAllToOriginal_leavesUnrestorableItemsInStash() {
+        let context = makeStore()
+        let store = context.store
+        let sourceDir = makeTempDir()
+        let file = makeTempFile(named: "restore_all_missing_metadata.txt", in: sourceDir, content: "a")
+
+        defer {
+            removeDir(context.stashDirectory)
+            removeDir(sourceDir)
+        }
+
+        store.stash(url: file)
+        let metadataURL = context.stashDirectory.appendingPathComponent(".metadata.json")
+        try? "{}".write(to: metadataURL, atomically: true, encoding: .utf8)
+        store.refreshItems()
+
+        let result = store.restoreAllToOriginal()
+
+        #expect(result.attemptedCount == 1)
+        #expect(result.successCount == 0)
+        #expect(result.failureCount == 1)
+        #expect(store.items.contains(where: { $0.name == "restore_all_missing_metadata.txt" }))
+    }
+
     @Test func restoreToOriginal_whenDestinationExists_usesCollisionSafeName() {
         let context = makeStore()
         let store = context.store
@@ -302,6 +392,58 @@ struct StashStoreTests {
         #expect(fileExists(at: restoredCollisionURL))
         #expect(!store.items.contains(where: { $0.name == "collision.txt" }))
         #expect(loadMetadata(in: context.stashDirectory)["collision.txt"] == nil)
+    }
+
+    @Test func moveAll_movesEveryItemToProvidedFolderAndClearsMetadata() {
+        let context = makeStore()
+        let store = context.store
+        let sourceDir = makeTempDir()
+        let destinationDir = makeTempDir()
+        let fileA = makeTempFile(named: "move_all_a.txt", in: sourceDir, content: "a")
+        let fileB = makeTempFile(named: "move_all_b.txt", in: sourceDir, content: "b")
+
+        defer {
+            removeDir(context.stashDirectory)
+            removeDir(sourceDir)
+            removeDir(destinationDir)
+        }
+
+        store.stash(url: fileA)
+        store.stash(url: fileB)
+
+        let result = store.moveAll(to: destinationDir)
+
+        #expect(result.attemptedCount == 2)
+        #expect(result.successCount == 2)
+        #expect(result.failureCount == 0)
+        #expect(fileExists(at: destinationDir.appendingPathComponent("move_all_a.txt")))
+        #expect(fileExists(at: destinationDir.appendingPathComponent("move_all_b.txt")))
+        #expect(store.items.isEmpty)
+        #expect(loadMetadata(in: context.stashDirectory).isEmpty)
+    }
+
+    @Test func moveAll_whenDestinationNameCollidesUsesNumberedName() {
+        let context = makeStore()
+        let store = context.store
+        let sourceDir = makeTempDir()
+        let destinationDir = makeTempDir()
+        let file = makeTempFile(named: "move_collision.txt", in: sourceDir, content: "stashed")
+        let existing = makeTempFile(named: "move_collision.txt", in: destinationDir, content: "existing")
+
+        defer {
+            removeDir(context.stashDirectory)
+            removeDir(sourceDir)
+            removeDir(destinationDir)
+        }
+
+        store.stash(url: file)
+
+        let result = store.moveAll(to: destinationDir)
+
+        #expect(result.successCount == 1)
+        #expect(fileExists(at: existing))
+        #expect(fileExists(at: destinationDir.appendingPathComponent("move_collision 2.txt")))
+        #expect(store.items.isEmpty)
     }
 
     @Test func isolatedStore_usesProvidedTemporaryStashDirectory() {

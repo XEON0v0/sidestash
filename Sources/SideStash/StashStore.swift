@@ -14,6 +14,17 @@ struct StashItem: Identifiable, Equatable {
     }
 }
 
+struct BatchOperationResult: Equatable {
+    let attemptedCount: Int
+    let successCount: Int
+
+    var failureCount: Int {
+        attemptedCount - successCount
+    }
+
+    static let empty = BatchOperationResult(attemptedCount: 0, successCount: 0)
+}
+
 @MainActor
 class StashStore: ObservableObject {
     static let shared = StashStore()
@@ -271,11 +282,66 @@ class StashStore: ObservableObject {
         refreshItems()
     }
 
+    func trashAll() -> BatchOperationResult {
+        let snapshot = items
+        guard !snapshot.isEmpty else { return .empty }
+
+        var successCount = 0
+        for item in snapshot {
+            do {
+                _ = try fileSystem.trashItem(at: item.url)
+                removeMetadata(for: item)
+                successCount += 1
+            } catch {
+                logger.error("Failed to trash item \(item.name): \(error.localizedDescription)")
+            }
+        }
+
+        refreshItems()
+        return BatchOperationResult(attemptedCount: snapshot.count, successCount: successCount)
+    }
+
     func restoreToOriginal(item: StashItem) {
         if restoreItemToOriginalLocation(item) {
             removeMetadata(for: item)
             refreshItems()
         }
+    }
+
+    func restoreAllToOriginal() -> BatchOperationResult {
+        let snapshot = items
+        guard !snapshot.isEmpty else { return .empty }
+
+        var successCount = 0
+        for item in snapshot {
+            if restoreItemToOriginalLocation(item) {
+                removeMetadata(for: item)
+                successCount += 1
+            }
+        }
+
+        refreshItems()
+        return BatchOperationResult(attemptedCount: snapshot.count, successCount: successCount)
+    }
+
+    func moveAll(to destinationDirectory: URL) -> BatchOperationResult {
+        let snapshot = items
+        guard !snapshot.isEmpty else { return .empty }
+
+        var successCount = 0
+        for item in snapshot {
+            let destinationURL = uniqueURL(at: destinationDirectory, for: item.name)
+            do {
+                try fileSystem.moveItem(at: item.url, to: destinationURL)
+                removeMetadata(for: item)
+                successCount += 1
+            } catch {
+                logger.error("Failed to move \(item.name) to current Finder folder: \(error.localizedDescription)")
+            }
+        }
+
+        refreshItems()
+        return BatchOperationResult(attemptedCount: snapshot.count, successCount: successCount)
     }
 
     private func uniqueDestinationURL(for filename: String) -> URL {

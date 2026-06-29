@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="620" viewBox="0 0 720 620">
+  <defs>
+    <linearGradient id="stage" x1="110" y1="70" x2="620" y2="560" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f7f8fa"/>
+      <stop offset="0.48" stop-color="#b2b9c3"/>
+      <stop offset="1" stop-color="#e5e8ed"/>
+    </linearGradient>
+    <radialGradient id="light" cx="190" cy="108" r="260" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.98"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="panelShadow" x="150" y="70" width="420" height="520" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="22" stdDeviation="22" flood-color="#202226" flood-opacity="0.25"/>
+    </filter>
+    <filter id="finderFloat" x="180" y="70" width="360" height="460" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#000000" flood-opacity="0.085"/>
+    </filter>
+    <filter id="folderShadow" x="-20" y="-12" width="150" height="130" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="2" stdDeviation="1.4" flood-color="#000000" flood-opacity="0.18"/>
+    </filter>
+    <linearGradient id="folderBlue" x1="0" y1="0" x2="0" y2="56">
+      <stop offset="0" stop-color="#61c9f1"/>
+      <stop offset="1" stop-color="#38a9dc"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="28">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e6ebf1"/>
+    </linearGradient>
+    <linearGradient id="toolbar" x1="0" y1="0" x2="0" y2="36">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.68"/>
+      <stop offset="1" stop-color="#f6f6f7" stop-opacity="0.48"/>
+    </linearGradient>
+    <style>
+      .title { font: 650 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; fill: rgba(28,28,30,.88); }
+      .rowText { font: 520 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; fill: rgba(34,34,36,.76); }
+      .note { font: 500 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; fill: rgba(28,28,30,.62); }
+      .icon { fill: none; stroke: rgba(67,67,70,.86); stroke-width: 2.15; stroke-linecap: round; stroke-linejoin: round; }
+      .iconSoft { fill: none; stroke: rgba(67,67,70,.38); stroke-width: 2.15; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <rect width="720" height="620" fill="url(#stage)"/>
+  <rect width="720" height="620" fill="url(#light)"/>
+
+  <g filter="url(#panelShadow)">
+    <rect x="200" y="76" width="320" height="420" rx="20" fill="#f7f8fa" fill-opacity="0.94"/>
+    <rect x="200.5" y="76.5" width="319" height="419" rx="19.5" fill="none" stroke="#ffffff" stroke-opacity="0.72"/>
+    <rect x="200.5" y="76.5" width="319" height="419" rx="19.5" fill="none" stroke="#000000" stroke-opacity="0.045"/>
+  </g>
+
+  <g filter="url(#finderFloat)">
+    <rect x="212" y="86" width="296" height="38" rx="19" fill="url(#toolbar)"/>
+    <rect x="212.6" y="86.6" width="294.8" height="36.8" rx="18.4" fill="none" stroke="#ffffff" stroke-opacity="0.76"/>
+    <rect x="213" y="87" width="294" height="36" rx="18" fill="none" stroke="#000000" stroke-opacity="0.035"/>
+    <circle cx="231" cy="105" r="7" fill="#ff5f57"/>
+    <circle cx="231" cy="105" r="6.5" fill="none" stroke="#000000" stroke-opacity="0.16"/>
+    <text x="360" y="110" text-anchor="middle" class="title">SideStash</text>
+  </g>
+
+  <g transform="translate(236 154)" filter="url(#folderShadow)">
+    <path d="M2 12c0-4.4 3.6-8 8-8h27l8 7h55c4.4 0 8 3.6 8 8v54c0 4.4-3.6 8-8 8H10c-4.4 0-8-3.6-8-8Z" fill="url(#folderBlue)"/>
+    <path d="M7 22h96" stroke="#c7f1ff" stroke-width="4" stroke-linecap="round" opacity="0.85"/>
+  </g>
+  <text x="290" y="260" text-anchor="middle" class="rowText">Design Notes</text>
+
+  <g transform="translate(376 154)" filter="url(#folderShadow)">
+    <path d="M2 12c0-4.4 3.6-8 8-8h27l8 7h55c4.4 0 8 3.6 8 8v54c0 4.4-3.6 8-8 8H10c-4.4 0-8-3.6-8-8Z" fill="url(#folderBlue)"/>
+    <path d="M7 22h96" stroke="#c7f1ff" stroke-width="4" stroke-linecap="round" opacity="0.85"/>
+  </g>
+  <text x="430" y="260" text-anchor="middle" class="rowText">Screenshots</text>
+
+  <g transform="translate(236 292)">
+    <rect x="13" y="6" width="28" height="32" rx="6" fill="url(#paper)" stroke="#000000" stroke-opacity="0.11"/>
+    <text x="58" y="27" class="rowText">Archive.zip</text>
+  </g>
+
+  <g filter="url(#finderFloat)">
+    <rect x="292" y="442" width="136" height="38" rx="19" fill="url(#toolbar)"/>
+    <rect x="292.6" y="442.6" width="134.8" height="36.8" rx="18.4" fill="none" stroke="#ffffff" stroke-opacity="0.8"/>
+    <rect x="293" y="443" width="134" height="36" rx="18" fill="none" stroke="#000000" stroke-opacity="0.04"/>
+
+    <g transform="translate(307 451)">
+      <path class="icon" d="M2 4h20"/>
+      <path class="icon" d="M7 4V2h10v2"/>
+      <path class="icon" d="M5.5 4l1 20h11l1-20"/>
+      <path class="icon" d="M10 10v8"/>
+      <path class="icon" d="M14 10v8"/>
+    </g>
+
+    <g transform="translate(350 451)">
+      <path class="icon" d="M2 6h6l2 2h12v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z"/>
+      <path class="icon" d="M11 14h8"/>
+      <path class="icon" d="M16 11l3 3-3 3"/>
+    </g>
+
+    <g transform="translate(394 451)">
+      <path class="icon" d="M8 13l-5-5 5-5"/>
+      <path class="icon" d="M3 8h10a6 6 0 0 1 0 12h-2"/>
+      <path class="icon" d="M17 2h4v4"/>
+    </g>
+  </g>
+
+  <text x="360" y="528" text-anchor="middle" class="note">v2: 一个 Finder 顶栏式三按钮胶囊，灰色图标、轻材质、大软阴影、无文字标签</text>
+</svg>

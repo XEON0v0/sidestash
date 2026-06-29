@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="620" viewBox="0 0 720 620">
+  <defs>
+    <linearGradient id="stage" x1="110" y1="70" x2="620" y2="560" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f6f7fa"/>
+      <stop offset="0.48" stop-color="#aeb5c0"/>
+      <stop offset="1" stop-color="#e4e7ec"/>
+    </linearGradient>
+    <radialGradient id="light" cx="190" cy="110" r="250" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.98"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="panelShadow" x="150" y="70" width="420" height="520" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="22" stdDeviation="22" flood-color="#202226" flood-opacity="0.28"/>
+    </filter>
+    <filter id="chromeShadow" x="180" y="90" width="360" height="460" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#000000" flood-opacity="0.11"/>
+    </filter>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="28">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dfe6ef"/>
+    </linearGradient>
+    <linearGradient id="buttonSurface" x1="0" y1="0" x2="0" y2="34">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.68"/>
+      <stop offset="1" stop-color="#f5f6f8" stop-opacity="0.66"/>
+    </linearGradient>
+    <style>
+      .title { font: 650 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; fill: rgba(28,28,30,.9); }
+      .rowText { font: 520 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; fill: rgba(34,34,36,.78); }
+      .caption { font: 500 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; fill: rgba(28,28,30,.68); }
+      .icon { fill: none; stroke: rgba(36,36,38,.78); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      .dangerIcon { fill: none; stroke: rgb(214,62,52); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      .mutedIcon { fill: none; stroke: rgba(36,36,38,.34); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <rect width="720" height="620" fill="url(#stage)"/>
+  <rect width="720" height="620" fill="url(#light)"/>
+
+  <g filter="url(#panelShadow)">
+    <rect x="200" y="76" width="320" height="420" rx="20" fill="#f6f7f9" fill-opacity="0.94"/>
+    <rect x="200.5" y="76.5" width="319" height="419" rx="19.5" fill="none" stroke="#ffffff" stroke-opacity="0.68"/>
+    <rect x="200.5" y="76.5" width="319" height="419" rx="19.5" fill="none" stroke="#000000" stroke-opacity="0.05"/>
+  </g>
+
+  <g filter="url(#chromeShadow)">
+    <rect x="212" y="86" width="296" height="38" rx="12" fill="#ffffff" fill-opacity="0.62"/>
+    <rect x="212.5" y="86.5" width="295" height="37" rx="11.5" fill="none" stroke="#ffffff" stroke-opacity="0.56"/>
+    <circle cx="231" cy="105" r="7" fill="#ff5f57"/>
+    <circle cx="231" cy="105" r="6.5" fill="none" stroke="#000000" stroke-opacity="0.16"/>
+    <text x="360" y="110" text-anchor="middle" class="title">SideStash</text>
+  </g>
+
+  <g transform="translate(212 140)">
+    <g transform="translate(0 0)">
+      <rect width="296" height="39" rx="10" fill="transparent"/>
+      <rect x="10" y="5.5" width="24" height="28" rx="5" fill="url(#paper)" stroke="#000000" stroke-opacity="0.12"/>
+      <text x="51" y="25" class="rowText">Design Notes.pdf</text>
+    </g>
+    <g transform="translate(0 43)">
+      <rect width="296" height="39" rx="10" fill="#000000" fill-opacity="0.045"/>
+      <rect x="10" y="5.5" width="24" height="28" rx="5" fill="url(#paper)" stroke="#000000" stroke-opacity="0.12"/>
+      <text x="51" y="25" class="rowText">Screenshot.png</text>
+    </g>
+    <g transform="translate(0 86)">
+      <rect width="296" height="39" rx="10" fill="transparent"/>
+      <rect x="10" y="5.5" width="24" height="28" rx="5" fill="url(#paper)" stroke="#000000" stroke-opacity="0.12"/>
+      <text x="51" y="25" class="rowText">Archive.zip</text>
+    </g>
+  </g>
+
+  <g filter="url(#chromeShadow)">
+    <rect x="212" y="438" width="296" height="48" rx="18" fill="#ffffff" fill-opacity="0.66"/>
+    <rect x="212.5" y="438.5" width="295" height="47" rx="17.5" fill="none" stroke="#ffffff" stroke-opacity="0.7"/>
+    <rect x="213" y="439" width="294" height="46" rx="17" fill="none" stroke="#ffffff" stroke-opacity="0.46"/>
+
+    <g transform="translate(220 445)">
+      <rect width="46" height="34" rx="17" fill="url(#buttonSurface)" stroke="#000000" stroke-opacity="0.06"/>
+      <path class="dangerIcon" d="M13 10h20"/>
+      <path class="dangerIcon" d="M18 10V8h10v2"/>
+      <path class="dangerIcon" d="M16.5 10l1 16h11l1-16"/>
+      <path class="dangerIcon" d="M21 16v6"/>
+      <path class="dangerIcon" d="M25 16v6"/>
+    </g>
+
+    <g transform="translate(306 445)">
+      <rect width="92" height="34" rx="17" fill="url(#buttonSurface)" stroke="#000000" stroke-opacity="0.06"/>
+      <rect width="46" height="34" rx="17" fill="#000000" fill-opacity="0.052"/>
+      <line x1="46" y1="0" x2="46" y2="34" stroke="#000000" stroke-opacity="0.06"/>
+      <g transform="translate(13 7)">
+        <path class="icon" d="M-1 .5h6l2 2h10v11.5a2 2 0 0 1-2 2H1a2 2 0 0 1-2-2Z"/>
+        <path class="icon" d="M8 10h8"/>
+        <path class="icon" d="M13 7l3 3-3 3"/>
+      </g>
+      <g transform="translate(59 7)">
+        <path class="icon" d="M6 10l-4-4 4-4"/>
+        <path class="icon" d="M2 6h9a5 5 0 0 1 0 10H9"/>
+        <path class="icon" d="M14 0h4v4"/>
+      </g>
+    </g>
+
+    <g transform="translate(454 445)">
+      <rect width="46" height="34" rx="17" fill="url(#buttonSurface)" stroke="#000000" stroke-opacity="0.06"/>
+      <path class="mutedIcon" d="M13 17h20"/>
+      <path class="mutedIcon" d="M23 7v20"/>
+    </g>
+  </g>
+
+  <g>
+    <rect x="200" y="514" width="96" height="28" rx="10" fill="#ffffff" fill-opacity="0.42"/>
+    <rect x="312" y="514" width="96" height="28" rx="10" fill="#ffffff" fill-opacity="0.42"/>
+    <rect x="424" y="514" width="96" height="28" rx="10" fill="#ffffff" fill-opacity="0.42"/>
+    <text x="248" y="532" text-anchor="middle" class="caption">废纸篓：独立危险按钮</text>
+    <text x="360" y="532" text-anchor="middle" class="caption">移动/还原：同组胶囊</text>
+    <text x="472" y="532" text-anchor="middle" class="caption">空状态：降透明禁用</text>
+  </g>
+</svg>

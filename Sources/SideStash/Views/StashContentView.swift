@@ -4,6 +4,7 @@ struct StashContentView: View {
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject var store: StashStore
     @State private var pendingAlert: BulkActionAlert?
+    @State private var hoveredBulkAction: SideStashBulkAction?
 
     var panelHeight: CGFloat = 420
     var onClose: (() -> Void)?
@@ -164,28 +165,29 @@ struct StashContentView: View {
 
     private var bottomBulkActions: some View {
         let isDisabled = store.items.isEmpty
+        let appearance = SideStashSidebarStyle.bottomActionsAppearance(for: colorScheme)
 
         return HStack(spacing: 0) {
             bulkActionButton(
-                symbolName: SideStashSidebarChromePolicy.trashAllSymbolName,
-                labelKey: "bulk.trash.tooltip",
-                isDisabled: isDisabled
+                bulkAction: .trashAll,
+                isDisabled: isDisabled,
+                appearance: appearance
             ) {
                 pendingAlert = .confirmTrash
             }
 
             bulkActionButton(
-                symbolName: SideStashSidebarChromePolicy.moveAllToCurrentFolderSymbolName,
-                labelKey: "bulk.move_current.tooltip",
-                isDisabled: isDisabled
+                bulkAction: .moveAllToCurrentFolder,
+                isDisabled: isDisabled,
+                appearance: appearance
             ) {
                 moveAllToCurrentFinderFolder()
             }
 
             bulkActionButton(
-                symbolName: SideStashSidebarChromePolicy.restoreAllSymbolName,
-                labelKey: "bulk.restore.tooltip",
-                isDisabled: isDisabled
+                bulkAction: .restoreAll,
+                isDisabled: isDisabled,
+                appearance: appearance
             ) {
                 guard store.items.contains(where: { $0.originalURL != nil }) else {
                     pendingAlert = .result(
@@ -204,57 +206,99 @@ struct StashContentView: View {
             }
         }
         .frame(height: SideStashSidebarChromePolicy.bottomActionsHeight)
-        .background(bottomActionsBackground)
+        .background(bottomActionsBackground(appearance: appearance))
         .clipShape(RoundedRectangle(cornerRadius: SideStashSidebarChromePolicy.bottomActionsCornerRadius, style: .continuous))
         .shadow(
-            color: .black.opacity(SideStashSidebarChromePolicy.bottomActionsShadowOpacity),
+            color: .black.opacity(appearance.shadowOpacity),
             radius: 18,
             y: 10
         )
-        .disabled(isDisabled)
     }
 
-    private var bottomActionsBackground: some View {
+    private func bottomActionsBackground(appearance: SideStashBottomActionsAppearance) -> some View {
         RoundedRectangle(cornerRadius: SideStashSidebarChromePolicy.bottomActionsCornerRadius, style: .continuous)
             .fill(.regularMaterial)
             .overlay(
                 RoundedRectangle(cornerRadius: SideStashSidebarChromePolicy.bottomActionsCornerRadius, style: .continuous)
-                    .fill(Color.white.opacity(SideStashSidebarChromePolicy.bottomActionsBackgroundAlpha))
+                    .fill(Color(nsColor: appearance.overlayBase).opacity(appearance.overlayAlpha))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: SideStashSidebarChromePolicy.bottomActionsCornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(SideStashSidebarChromePolicy.bottomActionsHighlightStrokeAlpha), lineWidth: 1)
+                    .stroke(Color.white.opacity(appearance.highlightStrokeAlpha), lineWidth: 1)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: SideStashSidebarChromePolicy.bottomActionsCornerRadius, style: .continuous)
-                    .stroke(Color.black.opacity(SideStashSidebarChromePolicy.bottomActionsBorderAlpha), lineWidth: 1)
+                    .stroke(Color.black.opacity(appearance.borderAlpha), lineWidth: 1)
             )
     }
 
     private func bulkActionButton(
-        symbolName: String,
-        labelKey: String,
+        bulkAction: SideStashBulkAction,
         isDisabled: Bool,
+        appearance: SideStashBottomActionsAppearance,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
-            Image(systemName: symbolName)
+        let title = NSLocalizedString(bulkAction.titleKey, comment: "Bulk action tooltip")
+
+        return Button {
+            guard !isDisabled else {
+                return
+            }
+
+            action()
+        } label: {
+            Image(systemName: bulkAction.symbolName)
                 .symbolRenderingMode(.monochrome)
                 .font(.system(size: SideStashSidebarChromePolicy.bottomActionsIconSize, weight: .medium))
                 .foregroundStyle(.primary.opacity(
                     isDisabled
-                    ? SideStashSidebarChromePolicy.bottomActionsDisabledIconOpacity
-                    : SideStashSidebarChromePolicy.bottomActionsIconOpacity
+                    ? appearance.disabledIconOpacity
+                    : appearance.iconOpacity
                 ))
                 .frame(
                     width: SideStashSidebarChromePolicy.bottomActionButtonWidth,
                     height: SideStashSidebarChromePolicy.bottomActionsHeight
                 )
                 .contentShape(Rectangle())
+                .overlay(alignment: .top) {
+                    if hoveredBulkAction == bulkAction {
+                        bulkActionHoverTitle(title)
+                            .offset(y: -34)
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
+                }
         }
         .buttonStyle(.plain)
-        .help(NSLocalizedString(labelKey, comment: "Bulk action tooltip"))
-        .accessibilityLabel(Text(NSLocalizedString(labelKey, comment: "Bulk action accessibility label")))
+        .help(title)
+        .accessibilityLabel(Text(title))
+        .onHover { isHovering in
+            hoveredBulkAction = isHovering ? bulkAction : nil
+        }
+        .animation(.easeOut(duration: 0.12), value: hoveredBulkAction)
+    }
+
+    private func bulkActionHoverTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.primary.opacity(0.9))
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(.regularMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .stroke(Color.white.opacity(colorScheme == .dark ? 0.18 : 0.52), lineWidth: 1)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .stroke(Color.black.opacity(colorScheme == .dark ? 0.2 : 0.08), lineWidth: 1)
+                    )
+            )
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0.2 : 0.1), radius: 10, y: 5)
+            .allowsHitTesting(false)
     }
 
     private func moveAllToCurrentFinderFolder() {

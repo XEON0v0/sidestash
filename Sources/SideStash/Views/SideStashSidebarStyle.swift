@@ -12,6 +12,44 @@ struct SideStashPaneAppearance {
     let contentBackgroundAlpha: CGFloat
 }
 
+struct SideStashBottomActionsAppearance {
+    let overlayBase: NSColor
+    let overlayAlpha: CGFloat
+    let highlightStrokeAlpha: CGFloat
+    let borderAlpha: CGFloat
+    let shadowOpacity: CGFloat
+    let iconOpacity: CGFloat
+    let disabledIconOpacity: CGFloat
+}
+
+enum SideStashBulkAction: CaseIterable, Equatable {
+    case trashAll
+    case moveAllToCurrentFolder
+    case restoreAll
+
+    var symbolName: String {
+        switch self {
+        case .trashAll:
+            return SideStashSidebarChromePolicy.trashAllSymbolName
+        case .moveAllToCurrentFolder:
+            return SideStashSidebarChromePolicy.moveAllToCurrentFolderSymbolName
+        case .restoreAll:
+            return SideStashSidebarChromePolicy.restoreAllSymbolName
+        }
+    }
+
+    var titleKey: String {
+        switch self {
+        case .trashAll:
+            return "bulk.trash.tooltip"
+        case .moveAllToCurrentFolder:
+            return "bulk.move_current.tooltip"
+        case .restoreAll:
+            return "bulk.restore.tooltip"
+        }
+    }
+}
+
 enum SideStashSidebarStyle {
     static let paneCornerRadius: CGFloat = 20
     static let paneFillAlpha: CGFloat = 0.18
@@ -60,6 +98,31 @@ enum SideStashSidebarStyle {
             return SideStashPaneAppearance(
                 contentBackground: .windowBackgroundColor,
                 contentBackgroundAlpha: 0.94
+            )
+        }
+    }
+
+    static func bottomActionsAppearance(for colorScheme: ColorScheme) -> SideStashBottomActionsAppearance {
+        switch colorScheme {
+        case .dark:
+            return SideStashBottomActionsAppearance(
+                overlayBase: .black,
+                overlayAlpha: 0.26,
+                highlightStrokeAlpha: 0.24,
+                borderAlpha: 0.18,
+                shadowOpacity: 0.05,
+                iconOpacity: 0.76,
+                disabledIconOpacity: 0.22
+            )
+        default:
+            return SideStashBottomActionsAppearance(
+                overlayBase: .white,
+                overlayAlpha: SideStashSidebarChromePolicy.bottomActionsBackgroundAlpha,
+                highlightStrokeAlpha: SideStashSidebarChromePolicy.bottomActionsHighlightStrokeAlpha,
+                borderAlpha: SideStashSidebarChromePolicy.bottomActionsBorderAlpha,
+                shadowOpacity: SideStashSidebarChromePolicy.bottomActionsShadowOpacity,
+                iconOpacity: SideStashSidebarChromePolicy.bottomActionsIconOpacity,
+                disabledIconOpacity: SideStashSidebarChromePolicy.bottomActionsDisabledIconOpacity
             )
         }
     }

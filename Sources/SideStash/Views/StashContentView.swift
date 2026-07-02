@@ -32,33 +32,14 @@ struct StashContentView: View {
     var body: some View {
         let paneAppearance = SideStashSidebarStyle.paneAppearance(for: colorScheme)
 
-        ZStack(alignment: .top) {
-            GlassBackgroundView(cornerRadius: SideStashSidebarStyle.paneCornerRadius)
-                .allowsHitTesting(false)
-
+        ZStack {
             Color(nsColor: paneAppearance.contentBackground)
-                .opacity(paneAppearance.contentBackgroundAlpha)
+                .opacity(SideStashSidebarChromePolicy.outerPaneFillAlpha)
                 .clipShape(RoundedRectangle(cornerRadius: SideStashSidebarStyle.paneCornerRadius, style: .continuous))
                 .allowsHitTesting(false)
 
-            VStack(spacing: 0) {
-                Color.clear
-                    .frame(height: SideStashSidebarChromePolicy.headerContainerHeight)
-
-                if store.items.isEmpty {
-                    emptyState
-                } else {
-                    fileGrid
-                }
-            }
-
-            floatingHeader
-                .padding(.top, SideStashSidebarStyle.headerTopInset)
-                .padding(.horizontal, SideStashSidebarStyle.headerHorizontalInset)
-
-            bottomBulkActions
-                .padding(.bottom, SideStashSidebarChromePolicy.bottomActionsBottomInset)
-                .frame(maxHeight: .infinity, alignment: .bottom)
+            sidebarPlate(paneAppearance: paneAppearance)
+                .padding(SideStashSidebarStyle.sidebarPlateInset)
         }
         .frame(width: 320, height: panelHeight)
         .alert(item: $pendingAlert) { alert in
@@ -87,10 +68,58 @@ struct StashContentView: View {
         }
     }
 
+    private func sidebarPlate(paneAppearance: SideStashPaneAppearance) -> some View {
+        ZStack(alignment: .top) {
+            GlassBackgroundView(cornerRadius: SideStashSidebarStyle.sidebarPlateCornerRadius)
+                .overlay(
+                    Color(nsColor: paneAppearance.contentBackground)
+                        .opacity(paneAppearance.contentBackgroundAlpha)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: SideStashSidebarStyle.sidebarPlateCornerRadius, style: .continuous)
+                        .stroke(Color.white.opacity(SideStashSidebarChromePolicy.sidebarPlateHighlightStrokeAlpha), lineWidth: 1)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: SideStashSidebarStyle.sidebarPlateCornerRadius, style: .continuous)
+                        .stroke(Color.black.opacity(SideStashSidebarChromePolicy.sidebarPlateSubtleBorderAlpha), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: SideStashSidebarStyle.sidebarPlateCornerRadius, style: .continuous))
+                .shadow(
+                    color: .black.opacity(SideStashSidebarChromePolicy.sidebarPlateShadowOpacity),
+                    radius: SideStashSidebarChromePolicy.sidebarPlateShadowRadius,
+                    y: SideStashSidebarChromePolicy.sidebarPlateShadowYOffset
+                )
+                .allowsHitTesting(false)
+
+            VStack(spacing: 0) {
+                Color.clear
+                    .frame(height: SideStashSidebarChromePolicy.headerContainerHeight)
+
+                if store.items.isEmpty {
+                    emptyState
+                } else {
+                    fileGrid
+                }
+            }
+
+            floatingHeader
+                .padding(.top, SideStashSidebarStyle.headerTopInset)
+                .padding(.horizontal, SideStashSidebarStyle.headerHorizontalInset)
+
+            bottomBulkActions
+                .padding(.bottom, SideStashSidebarChromePolicy.bottomActionsBottomInset)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+        }
+    }
+
     private var floatingHeader: some View {
         let appearance = SideStashSidebarStyle.headerAppearance(for: colorScheme)
 
         return ZStack {
+            HeaderDragHandle()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .allowsHitTesting(true)
+
             Text("SideStash")
                 .font(.system(size: Layout.headerTitleFontSize, weight: .semibold))
                 .foregroundStyle(.primary.opacity(appearance.textOpacity))
@@ -98,54 +127,37 @@ struct StashContentView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, SideStashSidebarChromePolicy.headerTitleReservedSideWidth)
 
-            Button(action: {
-                onClose?()
-            }) {
-                Circle()
-                    .fill(Color(nsColor: SideStashSidebarChromePolicy.closeButtonFill))
-                    .frame(
-                        width: SideStashSidebarChromePolicy.closeButtonSize,
-                        height: SideStashSidebarChromePolicy.closeButtonSize
-                    )
-                    .overlay(
-                        Circle()
-                            .stroke(
-                                Color.black.opacity(SideStashSidebarChromePolicy.closeButtonBorderAlpha),
-                                lineWidth: 1
-                            )
-                    )
-                    .frame(
-                        width: SideStashSidebarChromePolicy.closeButtonHoverSize,
-                        height: SideStashSidebarChromePolicy.closeButtonHoverSize
-                    )
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text("Close"))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, SideStashSidebarChromePolicy.closeButtonLeadingInset)
+            closeButton
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, SideStashSidebarChromePolicy.closeButtonLeadingInset)
         }
         .frame(height: SideStashSidebarStyle.headerHeight)
-        .background(
-            HeaderGlassDragHandle(cornerRadius: SideStashSidebarStyle.headerCornerRadius)
-                .overlay(
-                    Color(nsColor: appearance.overlayBase)
-                        .opacity(appearance.overlayAlpha)
+    }
+
+    private var closeButton: some View {
+        Button(action: {
+            onClose?()
+        }) {
+            Circle()
+                .fill(Color(nsColor: SideStashSidebarChromePolicy.closeButtonFill))
+                .frame(
+                    width: SideStashSidebarChromePolicy.closeButtonSize,
+                    height: SideStashSidebarChromePolicy.closeButtonSize
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: SideStashSidebarStyle.headerCornerRadius, style: .continuous)
-                        .stroke(Color.white.opacity(SideStashSidebarChromePolicy.headerHighlightStrokeAlpha), lineWidth: 1)
+                    Circle()
+                        .stroke(
+                            Color.black.opacity(SideStashSidebarChromePolicy.closeButtonBorderAlpha),
+                            lineWidth: 1
+                        )
                 )
-                .overlay(
-                    RoundedRectangle(cornerRadius: SideStashSidebarStyle.headerCornerRadius, style: .continuous)
-                        .stroke(Color.black.opacity(SideStashSidebarChromePolicy.headerSubtleBorderAlpha), lineWidth: 1)
+                .frame(
+                    width: SideStashSidebarChromePolicy.closeButtonHoverSize,
+                    height: SideStashSidebarChromePolicy.closeButtonHoverSize
                 )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: SideStashSidebarStyle.headerCornerRadius, style: .continuous))
-        .shadow(
-            color: .black.opacity(CGFloat(SideStashSidebarStyle.headerShadowOpacity)),
-            radius: SideStashSidebarChromePolicy.headerShadowRadius,
-            y: SideStashSidebarChromePolicy.headerShadowYOffset
-        )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Close"))
     }
 
     private var fileGrid: some View {
@@ -167,52 +179,65 @@ struct StashContentView: View {
         let isDisabled = store.items.isEmpty
         let appearance = SideStashSidebarStyle.bottomActionsAppearance(for: colorScheme)
 
-        return HStack(spacing: 0) {
-            bulkActionButton(
-                bulkAction: .trashAll,
-                isDisabled: isDisabled,
-                appearance: appearance
-            ) {
-                pendingAlert = .confirmTrash
-            }
-
-            bulkActionButton(
-                bulkAction: .moveAllToCurrentFolder,
-                isDisabled: isDisabled,
-                appearance: appearance
-            ) {
-                moveAllToCurrentFinderFolder()
-            }
-
-            bulkActionButton(
-                bulkAction: .restoreAll,
-                isDisabled: isDisabled,
-                appearance: appearance
-            ) {
-                guard store.items.contains(where: { $0.originalURL != nil }) else {
-                    pendingAlert = .result(
-                        title: NSLocalizedString("bulk.restore.tooltip", comment: "Restore all title"),
-                        message: NSLocalizedString("bulk.restore.result.none", comment: "No restorable files")
-                    )
-                    return
+        return ZStack(alignment: .bottom) {
+            HStack(spacing: 0) {
+                bulkActionButton(
+                    bulkAction: .trashAll,
+                    isDisabled: isDisabled,
+                    appearance: appearance
+                ) {
+                    pendingAlert = .confirmTrash
                 }
 
-                let result = store.restoreAllToOriginal()
-                showResult(
-                    result,
-                    successKey: "bulk.restore.result.success",
-                    partialKey: "bulk.restore.result.partial"
-                )
+                bulkActionButton(
+                    bulkAction: .moveAllToCurrentFolder,
+                    isDisabled: isDisabled,
+                    appearance: appearance
+                ) {
+                    moveAllToCurrentFinderFolder()
+                }
+
+                bulkActionButton(
+                    bulkAction: .restoreAll,
+                    isDisabled: isDisabled,
+                    appearance: appearance
+                ) {
+                    guard store.items.contains(where: { $0.originalURL != nil }) else {
+                        pendingAlert = .result(
+                            title: NSLocalizedString("bulk.restore.tooltip", comment: "Restore all title"),
+                            message: NSLocalizedString("bulk.restore.result.none", comment: "No restorable files")
+                        )
+                        return
+                    }
+
+                    let result = store.restoreAllToOriginal()
+                    showResult(
+                        result,
+                        successKey: "bulk.restore.result.success",
+                        partialKey: "bulk.restore.result.partial"
+                    )
+                }
+            }
+            .frame(height: SideStashSidebarChromePolicy.bottomActionsHeight)
+            .background(bottomActionsBackground(appearance: appearance))
+            .clipShape(RoundedRectangle(cornerRadius: SideStashSidebarChromePolicy.bottomActionsCornerRadius, style: .continuous))
+            .shadow(
+                color: .black.opacity(appearance.shadowOpacity),
+                radius: 18,
+                y: 10
+            )
+
+            if let hoveredBulkAction {
+                bulkActionHoverTitle(NSLocalizedString(hoveredBulkAction.titleKey, comment: "Bulk action tooltip"))
+                    .offset(
+                        x: bulkActionHoverTitleXOffset(for: hoveredBulkAction),
+                        y: -SideStashSidebarChromePolicy.bottomActionHoverTitleYOffset
+                    )
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .zIndex(1)
             }
         }
         .frame(height: SideStashSidebarChromePolicy.bottomActionsHeight)
-        .background(bottomActionsBackground(appearance: appearance))
-        .clipShape(RoundedRectangle(cornerRadius: SideStashSidebarChromePolicy.bottomActionsCornerRadius, style: .continuous))
-        .shadow(
-            color: .black.opacity(appearance.shadowOpacity),
-            radius: 18,
-            y: 10
-        )
     }
 
     private func bottomActionsBackground(appearance: SideStashBottomActionsAppearance) -> some View {
@@ -260,13 +285,6 @@ struct StashContentView: View {
                     height: SideStashSidebarChromePolicy.bottomActionsHeight
                 )
                 .contentShape(Rectangle())
-                .overlay(alignment: .top) {
-                    if hoveredBulkAction == bulkAction {
-                        bulkActionHoverTitle(title)
-                            .offset(y: -34)
-                            .transition(.opacity.combined(with: .move(edge: .bottom)))
-                    }
-                }
         }
         .buttonStyle(.plain)
         .help(title)
@@ -275,6 +293,17 @@ struct StashContentView: View {
             hoveredBulkAction = isHovering ? bulkAction : nil
         }
         .animation(.easeOut(duration: 0.12), value: hoveredBulkAction)
+    }
+
+    private func bulkActionHoverTitleXOffset(for bulkAction: SideStashBulkAction) -> CGFloat {
+        switch bulkAction {
+        case .trashAll:
+            return -SideStashSidebarChromePolicy.bottomActionButtonWidth
+        case .moveAllToCurrentFolder:
+            return 0
+        case .restoreAll:
+            return SideStashSidebarChromePolicy.bottomActionButtonWidth
+        }
     }
 
     private func bulkActionHoverTitle(_ title: String) -> some View {
@@ -349,47 +378,25 @@ struct StashContentView: View {
     }
 }
 
-struct HeaderGlassDragHandle: NSViewRepresentable {
-    var cornerRadius: CGFloat
-
+struct HeaderDragHandle: NSViewRepresentable {
     func makeNSView(context: Context) -> WindowDragHandleView {
         let view = WindowDragHandleView()
-        view.configureGlassBackground(cornerRadius: cornerRadius)
+        view.configureTransparentDragSurface()
         return view
     }
 
     func updateNSView(_ nsView: WindowDragHandleView, context: Context) {
-        nsView.configureGlassBackground(cornerRadius: cornerRadius)
+        nsView.configureTransparentDragSurface()
     }
 }
 
 class WindowDragHandleView: NSView {
     private var dragStartMouseLocation: NSPoint?
     private var dragStartWindowOrigin: NSPoint?
-    private var visualEffectView: NSVisualEffectView?
 
-    func configureGlassBackground(cornerRadius: CGFloat) {
+    func configureTransparentDragSurface() {
         wantsLayer = true
-        layer?.cornerRadius = cornerRadius
-        layer?.masksToBounds = true
-
-        let effectView: NSVisualEffectView
-        if let visualEffectView {
-            effectView = visualEffectView
-        } else {
-            effectView = NSVisualEffectView(frame: bounds)
-            effectView.autoresizingMask = [.width, .height]
-            effectView.state = .active
-            addSubview(effectView, positioned: .below, relativeTo: nil)
-            visualEffectView = effectView
-        }
-
-        effectView.material = SideStashSidebarChromePolicy.headerMaterial
-        effectView.blendingMode = SideStashSidebarChromePolicy.headerBlendingMode
-        effectView.isEmphasized = SideStashSidebarChromePolicy.isHeaderMaterialEmphasized
-        effectView.wantsLayer = true
-        effectView.layer?.cornerRadius = cornerRadius
-        effectView.layer?.masksToBounds = true
+        layer?.backgroundColor = NSColor.clear.cgColor
     }
 
     override func mouseDown(with event: NSEvent) {

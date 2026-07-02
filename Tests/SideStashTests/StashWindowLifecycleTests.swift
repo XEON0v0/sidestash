@@ -49,6 +49,35 @@ struct StashWindowLifecycleTests {
         #expect(AttachedPanelLifecyclePolicy.keyboardDecision(for: 49) == .ignore)
     }
 
+    @Test func statusBarClickWithoutCurrentEventTogglesPanel() {
+        #expect(!StatusBarClickPolicy.shouldShowContextMenu(for: nil))
+        #expect(!StatusBarClickPolicy.shouldShowContextMenu(for: NSEvent.mouseEvent(
+            with: .leftMouseUp,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 0
+        )!))
+    }
+
+    @Test func statusBarRightClickShowsContextMenu() {
+        #expect(StatusBarClickPolicy.shouldShowContextMenu(for: NSEvent.mouseEvent(
+            with: .rightMouseUp,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 0
+        )!))
+    }
+
     @Test func manualCloseClearsTrackedSnapshot() {
         let state = AttachedPanelLifecyclePolicy.resetTrackingStateAfterManualClose(
             trackedSnapshot: FinderWindowSnapshot(windowID: 202, rect: NSRect(x: 226, y: 254, width: 920, height: 543))

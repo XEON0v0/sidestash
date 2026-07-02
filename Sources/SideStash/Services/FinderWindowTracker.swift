@@ -8,6 +8,12 @@ struct FinderWindowSnapshot: Equatable {
     let rect: NSRect
 }
 
+enum FinderWindowVisibilityPolicy {
+    static func shouldExposeFinderWindow(isFinderActive: Bool, isWindowMinimized: Bool) -> Bool {
+        isFinderActive && !isWindowMinimized
+    }
+}
+
 @MainActor
 final class FinderWindowTracker {
     static let shared = FinderWindowTracker()
@@ -128,10 +134,29 @@ final class FinderWindowTracker {
             return
         }
 
+        guard FinderWindowVisibilityPolicy.shouldExposeFinderWindow(
+            isFinderActive: isFinderActive,
+            isWindowMinimized: false
+        ) else {
+            activeFinderWindowRect = nil
+            activeFinderWindowSnapshot = nil
+            return
+        }
+
         let appElement = AXUIElementCreateApplication(finderApp.processIdentifier)
 
         guard let windowElement = copyTrackedWindowElement(from: appElement) else {
             activeFinderWindowRect = nil
+            activeFinderWindowSnapshot = nil
+            return
+        }
+
+        guard FinderWindowVisibilityPolicy.shouldExposeFinderWindow(
+            isFinderActive: true,
+            isWindowMinimized: isWindowMinimized(windowElement)
+        ) else {
+            activeFinderWindowRect = nil
+            activeFinderWindowSnapshot = nil
             return
         }
 
@@ -228,6 +253,15 @@ final class FinderWindowTracker {
             return nil
         }
 
+        guard FinderWindowVisibilityPolicy.shouldExposeFinderWindow(
+            isFinderActive: isFinderActive,
+            isWindowMinimized: false
+        ) else {
+            activeFinderWindowRect = nil
+            activeFinderWindowSnapshot = nil
+            return nil
+        }
+
         let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
         let referencePoint = preferredRect.map { NSPoint(x: $0.midX, y: $0.midY) } ?? NSEvent.mouseLocation
         let screenFrame = NSScreen.screens.first(where: { NSPointInRect(referencePoint, $0.frame) })?.frame
@@ -285,6 +319,20 @@ final class FinderWindowTracker {
         }
 
         return unsafeBitCast(windowCF, to: AXUIElement.self)
+    }
+
+    private var isFinderActive: Bool {
+        NSWorkspace.shared.frontmostApplication?.bundleIdentifier == finderBundleID
+    }
+
+    private func isWindowMinimized(_ windowElement: AXUIElement) -> Bool {
+        var minimizedCF: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(windowElement, kAXMinimizedAttribute as CFString, &minimizedCF)
+        guard result == .success, let minimizedCF else {
+            return false
+        }
+
+        return (minimizedCF as? Bool) ?? false
     }
 
     nonisolated static func appKitRect(fromAccessibilityRect rect: CGRect, onScreenFrame screenFrame: NSRect) -> NSRect {
@@ -445,6 +493,16 @@ final class FinderWindowTracker {
     private func refreshFinderWindowRectFromWindowServer() {
         guard let finderApp = NSRunningApplication.runningApplications(withBundleIdentifier: finderBundleID).first else {
             activeFinderWindowRect = nil
+            activeFinderWindowSnapshot = nil
+            return
+        }
+
+        guard FinderWindowVisibilityPolicy.shouldExposeFinderWindow(
+            isFinderActive: isFinderActive,
+            isWindowMinimized: false
+        ) else {
+            activeFinderWindowRect = nil
+            activeFinderWindowSnapshot = nil
             return
         }
 

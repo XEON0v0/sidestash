@@ -1,5 +1,11 @@
 import AppKit
 
+enum StatusBarClickPolicy {
+    static func shouldShowContextMenu(for event: NSEvent?) -> Bool {
+        event?.type == .rightMouseUp
+    }
+}
+
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = StashStore()
@@ -41,8 +47,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func handleStatusBarClick(_ sender: NSStatusBarButton) {
-        let event = NSApp.currentEvent!
-        if event.type == .rightMouseUp {
+        if StatusBarClickPolicy.shouldShowContextMenu(for: NSApp.currentEvent) {
             showContextMenu()
         } else {
             windowManager.togglePanel(near: sender)

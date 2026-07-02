@@ -23,6 +23,7 @@ struct BottomBulkActionsStyleTests {
         #expect(SideStashBulkAction.moveAllToCurrentFolder.titleKey == "bulk.move_current.tooltip")
         #expect(SideStashBulkAction.restoreAll.titleKey == "bulk.restore.tooltip")
         #expect(SideStashBulkAction.allCases.allSatisfy { !$0.titleKey.isEmpty })
+        #expect(SideStashSidebarChromePolicy.bottomActionHoverTitleYOffset > SideStashSidebarChromePolicy.bottomActionsHeight)
     }
 
     @Test func bottomActions_symbolsExistOnCurrentMacOS() {

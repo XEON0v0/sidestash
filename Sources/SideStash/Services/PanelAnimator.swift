@@ -10,7 +10,7 @@ final class PanelAnimator {
         panel: NSPanel,
         from startRect: NSRect,
         to targetRect: NSRect,
-        completion: @escaping () -> Void = {}
+        completion: @escaping @MainActor @Sendable () -> Void = {}
     ) {
         let sequence = AttachedPanelRevealSequence(
             hiddenRect: startRect,
@@ -25,7 +25,7 @@ final class PanelAnimator {
     func animatePanelIn(
         panel: NSPanel,
         sequence: AttachedPanelRevealSequence,
-        completion: @escaping () -> Void = {}
+        completion: @escaping @MainActor @Sendable () -> Void = {}
     ) {
         guard !isAnimating else { return }
         isAnimating = true
@@ -49,9 +49,7 @@ final class PanelAnimator {
                 timingFunction: .easeInEaseOut,
                 alpha: 1.0
             ) {
-                MainActor.assumeIsolated {
-                    self.isAnimating = false
-                }
+                self.isAnimating = false
                 completion()
             }
         }
@@ -60,7 +58,7 @@ final class PanelAnimator {
     func animatePanelOut(
         panel: NSPanel,
         to endRect: NSRect,
-        completion: @escaping () -> Void = {}
+        completion: @escaping @MainActor @Sendable () -> Void = {}
     ) {
         guard !isAnimating else { return }
         isAnimating = true
@@ -71,12 +69,13 @@ final class PanelAnimator {
             panel.animator().alphaValue = 0.88
             panel.animator().setFrame(endRect, display: true)
         }, completionHandler: { [weak self] in
-            panel.orderOut(nil)
-            panel.alphaValue = 1.0
-            MainActor.assumeIsolated {
-                self?.isAnimating = false
+            let animator = self
+            Self.completeOnMainActor {
+                panel.orderOut(nil)
+                panel.alphaValue = 1.0
+                animator?.isAnimating = false
+                completion()
             }
-            completion()
         })
     }
 
@@ -86,7 +85,7 @@ final class PanelAnimator {
         duration: TimeInterval,
         timingFunction: CAMediaTimingFunctionName,
         alpha: CGFloat,
-        completion: @escaping () -> Void
+        completion: @escaping @MainActor @Sendable () -> Void
     ) {
         guard duration > 0 else {
             panel.setFrame(targetRect, display: true)
@@ -100,6 +99,16 @@ final class PanelAnimator {
             context.timingFunction = CAMediaTimingFunction(name: timingFunction)
             panel.animator().alphaValue = alpha
             panel.animator().setFrame(targetRect, display: true)
-        }, completionHandler: completion)
+        }, completionHandler: {
+            Self.completeOnMainActor(completion)
+        })
+    }
+
+    nonisolated private static func completeOnMainActor(
+        _ completion: @escaping @MainActor @Sendable () -> Void
+    ) {
+        Task { @MainActor in
+            completion()
+        }
     }
 }

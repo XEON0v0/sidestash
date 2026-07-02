@@ -56,13 +56,15 @@ enum SideStashSidebarStyle {
     static let paneBorderAlpha: CGFloat = 0.1
     static let paneShadowOpacity: Float = 0.1
     static let paneShadowBlur: CGFloat = 20
+    static let sidebarPlateInset: CGFloat = 5
+    static let sidebarPlateCornerRadius: CGFloat = 18
 
-    static let headerHeight: CGFloat = 38
-    static let headerCornerRadius: CGFloat = 12
+    static let headerHeight: CGFloat = 32
+    static let headerCornerRadius: CGFloat = 0
     static let headerHorizontalInset: CGFloat = 12
-    static let headerTopInset: CGFloat = 10
-    static let headerBackgroundAlpha: CGFloat = 0.58
-    static let headerShadowOpacity: Float = 0.08
+    static let headerTopInset: CGFloat = 16
+    static let headerBackgroundAlpha: CGFloat = 0
+    static let headerShadowOpacity: Float = 0
 
     static let rowHeight: CGFloat = 39
     static let rowCornerRadius: CGFloat = 10
@@ -75,14 +77,14 @@ enum SideStashSidebarStyle {
         case .dark:
             return SideStashHeaderAppearance(
                 overlayBase: .white,
-                overlayAlpha: 0.22,
-                textOpacity: 0.9
+                overlayAlpha: 0,
+                textOpacity: 0.88
             )
         default:
             return SideStashHeaderAppearance(
-                overlayBase: .white,
-                overlayAlpha: 0.38,
-                textOpacity: 0.96
+                overlayBase: .black,
+                overlayAlpha: 0,
+                textOpacity: 0.9
             )
         }
     }
@@ -92,12 +94,12 @@ enum SideStashSidebarStyle {
         case .dark:
             return SideStashPaneAppearance(
                 contentBackground: .windowBackgroundColor,
-                contentBackgroundAlpha: 0.96
+                contentBackgroundAlpha: 0.18
             )
         default:
             return SideStashPaneAppearance(
                 contentBackground: .windowBackgroundColor,
-                contentBackgroundAlpha: 0.94
+                contentBackgroundAlpha: 0.4
             )
         }
     }
@@ -134,11 +136,11 @@ enum SideStashSidebarChromePolicy {
     }
 
     static var headerContainerHeight: CGFloat {
-        54
+        58
     }
 
     static var closeButtonSize: CGFloat {
-        14
+        12
     }
 
     static var closeButtonHoverSize: CGFloat {
@@ -154,11 +156,11 @@ enum SideStashSidebarChromePolicy {
     }
 
     static var closeButtonFill: NSColor {
-        .systemRed
+        NSColor(srgbRed: 236 / 255, green: 103 / 255, blue: 101 / 255, alpha: 1)
     }
 
     static var closeButtonBorderAlpha: CGFloat {
-        0.18
+        0.16
     }
 
     static var headerMaterial: NSVisualEffectView.Material {
@@ -174,23 +176,47 @@ enum SideStashSidebarChromePolicy {
     }
 
     static var headerHighlightStrokeAlpha: CGFloat {
-        0.62
+        0
     }
 
     static var headerSubtleBorderAlpha: CGFloat {
-        0.018
+        0
     }
 
     static var headerShadowRadius: CGFloat {
-        22
+        0
     }
 
     static var headerShadowYOffset: CGFloat {
-        10
+        0
     }
 
     static var paneBorderWidth: CGFloat {
         1
+    }
+
+    static var outerPaneFillAlpha: CGFloat {
+        0.12
+    }
+
+    static var sidebarPlateHighlightStrokeAlpha: CGFloat {
+        0.56
+    }
+
+    static var sidebarPlateSubtleBorderAlpha: CGFloat {
+        0.035
+    }
+
+    static var sidebarPlateShadowOpacity: CGFloat {
+        0.075
+    }
+
+    static var sidebarPlateShadowRadius: CGFloat {
+        18
+    }
+
+    static var sidebarPlateShadowYOffset: CGFloat {
+        8
     }
 
     static var paneShadowOffsetY: CGFloat {
@@ -219,6 +245,10 @@ enum SideStashSidebarChromePolicy {
 
     static var bottomActionsIconSize: CGFloat {
         20
+    }
+
+    static var bottomActionHoverTitleYOffset: CGFloat {
+        bottomActionsHeight + 10
     }
 
     static var bottomActionsBackgroundAlpha: CGFloat {

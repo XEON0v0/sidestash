@@ -4,6 +4,12 @@ import Testing
 @testable import SideStash
 
 struct FinderWindowTrackerTests {
+    @Test func visibilityPolicy_tracksOnlyActiveUnminimizedFinderWindows() {
+        #expect(FinderWindowVisibilityPolicy.shouldExposeFinderWindow(isFinderActive: true, isWindowMinimized: false))
+        #expect(!FinderWindowVisibilityPolicy.shouldExposeFinderWindow(isFinderActive: false, isWindowMinimized: false))
+        #expect(!FinderWindowVisibilityPolicy.shouldExposeFinderWindow(isFinderActive: true, isWindowMinimized: true))
+    }
+
     @Test func appKitRect_convertsAccessibilityTopLeftCoordinatesIntoBottomLeftCoordinates() {
         let screenFrame = NSRect(x: 0, y: 0, width: 1470, height: 956)
         let accessibilityRect = CGRect(x: 226, y: 159, width: 920, height: 543)

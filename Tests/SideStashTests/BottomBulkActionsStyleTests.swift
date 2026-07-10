@@ -58,11 +58,15 @@ struct BottomBulkActionsStyleTests {
         #expect(SideStashSidebarChromePolicy.bottomActionsHeight == 40)
         #expect(SideStashSidebarChromePolicy.bottomActionButtonWidth == 44)
         #expect(SideStashSidebarChromePolicy.bottomActionsOverlayHeight == 84)
+        #expect(SideStashSidebarChromePolicy.bottomActionsBottomInset == 16)
         #expect(SideStashSidebarChromePolicy.bottomActionsTooltipGap == 8)
         #expect(SideStashSidebarChromePolicy.bottomActionsIconSize == 18)
         #expect(SideStashSidebarChromePolicy.bottomActionHoverScale == 1.04)
         #expect(SideStashSidebarChromePolicy.bottomActionPressedScale == 0.94)
+        #expect(SideStashSidebarChromePolicy.bottomActionsEnabledIconOpacity == 0.88)
         #expect(SideStashSidebarChromePolicy.bottomActionsDisabledIconOpacity == 0.28)
+        #expect(SideStashSidebarChromePolicy.bottomActionsTooltipMaxWidth == 240)
+        #expect(SideStashSidebarChromePolicy.bottomActionsTooltipCornerRadius == 8)
         #expect(SideStashSidebarChromePolicy.bottomActionsTooltipDelay == 0.35)
     }
 

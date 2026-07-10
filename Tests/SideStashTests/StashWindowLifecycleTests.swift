@@ -19,6 +19,17 @@ struct StashWindowLifecycleTests {
         #expect(decision == .close)
     }
 
+    @Test func attachedPanelIgnoresFinderLossWhileContentModalIsPresented() {
+        let decision = AttachedPanelLifecyclePolicy.decision(
+            isFinderAttached: true,
+            trackedSnapshot: FinderWindowSnapshot(windowID: 202, rect: NSRect(x: 226, y: 254, width: 920, height: 543)),
+            latestSnapshot: nil,
+            isContentModalPresented: true
+        )
+
+        #expect(decision == .ignore)
+    }
+
     @Test func attachedPanelStaysClosedToOtherFinderWindowWhenTrackedWindowChanges() {
         let decision = AttachedPanelLifecyclePolicy.decision(
             isFinderAttached: true,

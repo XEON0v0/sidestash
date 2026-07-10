@@ -24,9 +24,11 @@ enum AttachedPanelLifecyclePolicy {
     static func decision(
         isFinderAttached: Bool,
         trackedSnapshot: FinderWindowSnapshot?,
-        latestSnapshot: FinderWindowSnapshot?
+        latestSnapshot: FinderWindowSnapshot?,
+        isContentModalPresented: Bool = false
     ) -> AttachedPanelLifecycleDecision {
         guard isFinderAttached else { return .ignore }
+        guard !isContentModalPresented else { return .ignore }
         guard let trackedSnapshot else { return .ignore }
         guard let latestSnapshot else { return .close }
 
@@ -68,6 +70,7 @@ class StashWindowManager {
     private var edgePreviewView: PanelEdgePreviewView?
     private var escapeKeyMonitor: Any?
     private var isAttachedRevealAnimating = false
+    private var isContentModalPresented = false
 
     init(store: StashStore) {
         self.store = store
@@ -368,7 +371,8 @@ class StashWindowManager {
                     switch AttachedPanelLifecyclePolicy.decision(
                         isFinderAttached: true,
                         trackedSnapshot: self.attachedFinderWindowSnapshot,
-                        latestSnapshot: latestSnapshot
+                        latestSnapshot: latestSnapshot,
+                        isContentModalPresented: self.isContentModalPresented
                     ) {
                     case .close:
                         self.hidePanel()
@@ -396,7 +400,8 @@ class StashWindowManager {
                     switch AttachedPanelLifecyclePolicy.decision(
                         isFinderAttached: true,
                         trackedSnapshot: self.attachedFinderWindowSnapshot,
-                        latestSnapshot: nil
+                        latestSnapshot: nil,
+                        isContentModalPresented: self.isContentModalPresented
                     ) {
                     case .close:
                         self.hidePanel()
@@ -425,7 +430,10 @@ class StashWindowManager {
         AnyView(
             StashContentView(
                 panelHeight: height,
-                onClose: { [weak self] in self?.hidePanel() }
+                onClose: { [weak self] in self?.hidePanel() },
+                onAlertPresentationChanged: { [weak self] isPresented in
+                    self?.setContentModalPresentation(isPresented)
+                }
             )
             .environmentObject(store)
         )
@@ -441,6 +449,7 @@ class StashWindowManager {
         stopFinderFollow()
 
         guard currentPlacement?.isFinderAttached == true else { return }
+        guard !isContentModalPresented else { return }
 
         finderFollowTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in
             Task { @MainActor in
@@ -464,6 +473,8 @@ class StashWindowManager {
     }
 
     private func refreshFinderAttachment(preferredRect: NSRect?) {
+        guard !isContentModalPresented else { return }
+
         if attachedFinderWindowSnapshot?.windowID != nil || !FinderWindowTracker.shared.isAccessibilityGranted {
             _ = FinderWindowTracker.shared.refreshAttachedFinderWindowSnapshot(
                 windowID: attachedFinderWindowSnapshot?.windowID,
@@ -471,6 +482,17 @@ class StashWindowManager {
             )
         } else {
             FinderWindowTracker.shared.updateActiveFinderWindowRect()
+        }
+    }
+
+    private func setContentModalPresentation(_ isPresented: Bool) {
+        guard isContentModalPresented != isPresented else { return }
+        isContentModalPresented = isPresented
+
+        if isPresented {
+            stopFinderFollow()
+        } else if panel?.isVisible == true {
+            startFinderFollow()
         }
     }
 

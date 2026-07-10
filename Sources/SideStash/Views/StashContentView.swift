@@ -8,6 +8,7 @@ struct StashContentView: View {
 
     var panelHeight: CGFloat = 420
     var onClose: (() -> Void)?
+    var onAlertPresentationChanged: ((Bool) -> Void)?
 
     private enum BulkActionAlert: Identifiable {
         case confirmTrash
@@ -42,6 +43,12 @@ struct StashContentView: View {
                 .padding(SideStashSidebarStyle.sidebarPlateInset)
         }
         .frame(width: 320, height: panelHeight)
+        .onChange(of: pendingAlert?.id) { _, alertID in
+            onAlertPresentationChanged?(alertID != nil)
+        }
+        .onDisappear {
+            onAlertPresentationChanged?(false)
+        }
         .alert(item: $pendingAlert) { alert in
             switch alert {
             case .confirmTrash:

@@ -22,3 +22,5 @@
 "bulk.restore.result.success" = "已放回 %d 个文件。";
 "bulk.restore.result.partial" = "已放回 %d 个文件，%d 个未能放回。";
 "bulk.restore.result.none" = "没有可放回原处的文件。";
+"bulk.unavailable.empty" = "当前没有暂存文件。";
+"bulk.restore.unavailable" = "没有可放回原处的文件。";

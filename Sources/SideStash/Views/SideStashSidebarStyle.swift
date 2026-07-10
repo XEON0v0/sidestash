@@ -12,16 +12,6 @@ struct SideStashPaneAppearance {
     let contentBackgroundAlpha: CGFloat
 }
 
-struct SideStashBottomActionsAppearance {
-    let overlayBase: NSColor
-    let overlayAlpha: CGFloat
-    let highlightStrokeAlpha: CGFloat
-    let borderAlpha: CGFloat
-    let shadowOpacity: CGFloat
-    let iconOpacity: CGFloat
-    let disabledIconOpacity: CGFloat
-}
-
 enum SideStashBulkAction: CaseIterable, Hashable {
     case trashAll
     case moveAllToCurrentFolder
@@ -104,30 +94,6 @@ enum SideStashSidebarStyle {
         }
     }
 
-    static func bottomActionsAppearance(for colorScheme: ColorScheme) -> SideStashBottomActionsAppearance {
-        switch colorScheme {
-        case .dark:
-            return SideStashBottomActionsAppearance(
-                overlayBase: .black,
-                overlayAlpha: 0.26,
-                highlightStrokeAlpha: 0.24,
-                borderAlpha: 0.18,
-                shadowOpacity: 0.05,
-                iconOpacity: 0.76,
-                disabledIconOpacity: 0.22
-            )
-        default:
-            return SideStashBottomActionsAppearance(
-                overlayBase: .white,
-                overlayAlpha: SideStashSidebarChromePolicy.bottomActionsBackgroundAlpha,
-                highlightStrokeAlpha: SideStashSidebarChromePolicy.bottomActionsHighlightStrokeAlpha,
-                borderAlpha: SideStashSidebarChromePolicy.bottomActionsBorderAlpha,
-                shadowOpacity: SideStashSidebarChromePolicy.bottomActionsShadowOpacity,
-                iconOpacity: SideStashSidebarChromePolicy.bottomActionsIconOpacity,
-                disabledIconOpacity: SideStashSidebarChromePolicy.bottomActionsDisabledIconOpacity
-            )
-        }
-    }
 }
 
 enum SideStashSidebarChromePolicy {
@@ -240,34 +206,6 @@ enum SideStashSidebarChromePolicy {
     static let bottomActionsDisabledIconOpacity: CGFloat = 0.28
     static let bottomActionsTooltipMaxWidth: CGFloat = 240
     static let bottomActionsTooltipCornerRadius: CGFloat = 8
-
-    static var bottomActionsCornerRadius: CGFloat {
-        bottomActionsHeight / 2
-    }
-
-    static var bottomActionHoverTitleYOffset: CGFloat {
-        bottomActionsHeight + 10
-    }
-
-    static var bottomActionsBackgroundAlpha: CGFloat {
-        0.58
-    }
-
-    static var bottomActionsBorderAlpha: CGFloat {
-        0.045
-    }
-
-    static var bottomActionsHighlightStrokeAlpha: CGFloat {
-        0.78
-    }
-
-    static var bottomActionsShadowOpacity: CGFloat {
-        0.085
-    }
-
-    static var bottomActionsIconOpacity: CGFloat {
-        0.86
-    }
 
     static let trashAllSymbolName = "trash"
     static let moveAllToCurrentFolderSymbolName = "folder.badge.plus"

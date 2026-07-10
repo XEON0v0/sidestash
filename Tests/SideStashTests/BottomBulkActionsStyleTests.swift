@@ -79,41 +79,6 @@ struct BottomBulkActionsStyleTests {
         #expect(SideStashSidebarChromePolicy.bottomActionsTooltipDelay == 0.35)
     }
 
-    @Test func legacyBottomActionsKeepCapsuleAndHoverGeometry() {
-        #expect(
-            SideStashSidebarChromePolicy.bottomActionsCornerRadius
-                == SideStashSidebarChromePolicy.bottomActionsHeight / 2
-        )
-        #expect(
-            SideStashSidebarChromePolicy.bottomActionHoverTitleYOffset
-                > SideStashSidebarChromePolicy.bottomActionsHeight
-        )
-    }
-
-    @Test func legacyBottomActionsKeepSubtleOpacity() {
-        #expect(SideStashSidebarChromePolicy.bottomActionsBackgroundAlpha < 0.75)
-        #expect(SideStashSidebarChromePolicy.bottomActionsBorderAlpha < 0.1)
-        #expect(
-            SideStashSidebarChromePolicy.bottomActionsDisabledIconOpacity
-                < SideStashSidebarChromePolicy.bottomActionsIconOpacity
-        )
-    }
-
-    @Test func legacyBottomActionsPreserveLightDarkContrast() {
-        let light = SideStashSidebarStyle.bottomActionsAppearance(for: .light)
-        let dark = SideStashSidebarStyle.bottomActionsAppearance(for: .dark)
-
-        #expect(light.overlayBase == .white)
-        #expect(dark.overlayBase == .black)
-        #expect(dark.overlayAlpha < light.overlayAlpha)
-        #expect(dark.overlayAlpha >= 0.18)
-        #expect(dark.highlightStrokeAlpha < light.highlightStrokeAlpha)
-        #expect(dark.borderAlpha > light.borderAlpha)
-        #expect(dark.shadowOpacity <= light.shadowOpacity)
-        #expect(dark.iconOpacity >= 0.72)
-        #expect(dark.disabledIconOpacity < dark.iconOpacity)
-    }
-
     @Test func bottomActionsSymbolsExistOnCurrentMacOS() {
         for action in SideStashBulkAction.allCases {
             #expect(
@@ -168,5 +133,26 @@ struct BottomBulkActionsStyleTests {
 
         #expect(state.hoveredAction == nil)
         #expect(state.tooltipAction == nil)
+    }
+
+    @Test func unavailableReasonsAreLocalizedInSupportedLanguages() throws {
+        let reasonKeys = ["bulk.unavailable.empty", "bulk.restore.unavailable"]
+        let localizationNames = ["en", "zh-hans"]
+
+        for localizationName in localizationNames {
+            let localizationURL = try #require(Bundle.module.url(
+                forResource: localizationName,
+                withExtension: "lproj"
+            ))
+            let localizationBundle = try #require(Bundle(url: localizationURL))
+
+            for reasonKey in reasonKeys {
+                #expect(localizationBundle.localizedString(
+                    forKey: reasonKey,
+                    value: nil,
+                    table: nil
+                ) != reasonKey)
+            }
+        }
     }
 }

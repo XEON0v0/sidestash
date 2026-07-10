@@ -22,3 +22,5 @@
 "bulk.restore.result.success" = "Restored %d files.";
 "bulk.restore.result.partial" = "Restored %d files. %d could not be restored.";
 "bulk.restore.result.none" = "No files have original locations to restore.";
+"bulk.unavailable.empty" = "No stashed files.";
+"bulk.restore.unavailable" = "No files have original locations.";

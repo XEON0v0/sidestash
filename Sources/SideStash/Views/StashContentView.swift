@@ -4,7 +4,6 @@ struct StashContentView: View {
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject var store: StashStore
     @State private var pendingAlert: BulkActionAlert?
-    @State private var hoveredBulkAction: SideStashBulkAction?
 
     var panelHeight: CGFloat = 420
     var onClose: (() -> Void)?
@@ -177,164 +176,48 @@ struct StashContentView: View {
             }
             .padding(.top, 12)
             .padding(.horizontal, 12)
-            .padding(.bottom, SideStashSidebarChromePolicy.bottomActionsHeight + SideStashSidebarChromePolicy.bottomActionsBottomInset + 12)
+            .padding(
+                .bottom,
+                SideStashSidebarChromePolicy.bottomActionsOverlayHeight
+                    + SideStashSidebarChromePolicy.bottomActionsBottomInset
+                    + 12
+            )
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.7), value: store.items.count)
     }
 
     private var bottomBulkActions: some View {
-        let isDisabled = store.items.isEmpty
-        let appearance = SideStashSidebarStyle.bottomActionsAppearance(for: colorScheme)
-
-        return ZStack(alignment: .bottom) {
-            HStack(spacing: 0) {
-                bulkActionButton(
-                    bulkAction: .trashAll,
-                    isDisabled: isDisabled,
-                    appearance: appearance
-                ) {
-                    pendingAlert = .confirmTrash
-                }
-
-                bulkActionButton(
-                    bulkAction: .moveAllToCurrentFolder,
-                    isDisabled: isDisabled,
-                    appearance: appearance
-                ) {
-                    moveAllToCurrentFinderFolder()
-                }
-
-                bulkActionButton(
-                    bulkAction: .restoreAll,
-                    isDisabled: isDisabled,
-                    appearance: appearance
-                ) {
-                    guard store.items.contains(where: { $0.originalURL != nil }) else {
-                        pendingAlert = .result(
-                            title: NSLocalizedString("bulk.restore.tooltip", comment: "Restore all title"),
-                            message: NSLocalizedString("bulk.restore.result.none", comment: "No restorable files")
-                        )
-                        return
-                    }
-
-                    let result = store.restoreAllToOriginal()
-                    showResult(
-                        result,
-                        successKey: "bulk.restore.result.success",
-                        partialKey: "bulk.restore.result.partial"
-                    )
-                }
-            }
-            .frame(height: SideStashSidebarChromePolicy.bottomActionsHeight)
-            .background(bottomActionsBackground(appearance: appearance))
-            .clipShape(RoundedRectangle(cornerRadius: SideStashSidebarChromePolicy.bottomActionsCornerRadius, style: .continuous))
-            .shadow(
-                color: .black.opacity(appearance.shadowOpacity),
-                radius: 18,
-                y: 10
-            )
-
-            if let hoveredBulkAction {
-                bulkActionHoverTitle(NSLocalizedString(hoveredBulkAction.titleKey, comment: "Bulk action tooltip"))
-                    .offset(
-                        x: bulkActionHoverTitleXOffset(for: hoveredBulkAction),
-                        y: -SideStashSidebarChromePolicy.bottomActionHoverTitleYOffset
-                    )
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-                    .zIndex(1)
-            }
-        }
-        .frame(height: SideStashSidebarChromePolicy.bottomActionsHeight)
+        BottomActionToolbar(
+            hasItems: !store.items.isEmpty,
+            hasRestorableItems: store.items.contains { $0.originalURL != nil },
+            perform: performBulkAction
+        )
     }
 
-    private func bottomActionsBackground(appearance: SideStashBottomActionsAppearance) -> some View {
-        RoundedRectangle(cornerRadius: SideStashSidebarChromePolicy.bottomActionsCornerRadius, style: .continuous)
-            .fill(.regularMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: SideStashSidebarChromePolicy.bottomActionsCornerRadius, style: .continuous)
-                    .fill(Color(nsColor: appearance.overlayBase).opacity(appearance.overlayAlpha))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: SideStashSidebarChromePolicy.bottomActionsCornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(appearance.highlightStrokeAlpha), lineWidth: 1)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: SideStashSidebarChromePolicy.bottomActionsCornerRadius, style: .continuous)
-                    .stroke(Color.black.opacity(appearance.borderAlpha), lineWidth: 1)
-            )
-    }
+    private func performBulkAction(_ action: SideStashBulkAction) {
+        switch action {
+        case .trashAll:
+            pendingAlert = .confirmTrash
 
-    private func bulkActionButton(
-        bulkAction: SideStashBulkAction,
-        isDisabled: Bool,
-        appearance: SideStashBottomActionsAppearance,
-        action: @escaping () -> Void
-    ) -> some View {
-        let title = NSLocalizedString(bulkAction.titleKey, comment: "Bulk action tooltip")
+        case .moveAllToCurrentFolder:
+            moveAllToCurrentFinderFolder()
 
-        return Button {
-            guard !isDisabled else {
+        case .restoreAll:
+            guard store.items.contains(where: { $0.originalURL != nil }) else {
+                pendingAlert = .result(
+                    title: NSLocalizedString("bulk.restore.tooltip", comment: "Restore all title"),
+                    message: NSLocalizedString("bulk.restore.result.none", comment: "No restorable files")
+                )
                 return
             }
 
-            action()
-        } label: {
-            Image(systemName: bulkAction.symbolName)
-                .symbolRenderingMode(.monochrome)
-                .font(.system(size: SideStashSidebarChromePolicy.bottomActionsIconSize, weight: .medium))
-                .foregroundStyle(.primary.opacity(
-                    isDisabled
-                    ? appearance.disabledIconOpacity
-                    : appearance.iconOpacity
-                ))
-                .frame(
-                    width: SideStashSidebarChromePolicy.bottomActionButtonWidth,
-                    height: SideStashSidebarChromePolicy.bottomActionsHeight
-                )
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(title)
-        .accessibilityLabel(Text(title))
-        .onHover { isHovering in
-            hoveredBulkAction = isHovering ? bulkAction : nil
-        }
-        .animation(.easeOut(duration: 0.12), value: hoveredBulkAction)
-    }
-
-    private func bulkActionHoverTitleXOffset(for bulkAction: SideStashBulkAction) -> CGFloat {
-        switch bulkAction {
-        case .trashAll:
-            return -SideStashSidebarChromePolicy.bottomActionButtonWidth
-        case .moveAllToCurrentFolder:
-            return 0
-        case .restoreAll:
-            return SideStashSidebarChromePolicy.bottomActionButtonWidth
-        }
-    }
-
-    private func bulkActionHoverTitle(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(.primary.opacity(0.9))
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(.regularMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .stroke(Color.white.opacity(colorScheme == .dark ? 0.18 : 0.52), lineWidth: 1)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .stroke(Color.black.opacity(colorScheme == .dark ? 0.2 : 0.08), lineWidth: 1)
-                    )
+            let result = store.restoreAllToOriginal()
+            showResult(
+                result,
+                successKey: "bulk.restore.result.success",
+                partialKey: "bulk.restore.result.partial"
             )
-            .shadow(color: .black.opacity(colorScheme == .dark ? 0.2 : 0.1), radius: 10, y: 5)
-            .allowsHitTesting(false)
+        }
     }
 
     private func moveAllToCurrentFinderFolder() {

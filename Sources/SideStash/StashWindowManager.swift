@@ -20,6 +20,12 @@ enum AttachedPanelChromePolicy {
     }
 }
 
+enum AttachedPanelInteractionPolicy {
+    static func enableHoverTracking(on panel: NSPanel) {
+        panel.acceptsMouseMovedEvents = true
+    }
+}
+
 enum AttachedPanelLifecyclePolicy {
     static func decision(
         isFinderAttached: Bool,
@@ -165,6 +171,7 @@ class StashWindowManager {
             backing: .buffered,
             defer: false
         )
+        AttachedPanelInteractionPolicy.enableHoverTracking(on: panel)
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false

@@ -3,6 +3,22 @@ import Testing
 @testable import SideStash
 
 struct StashWindowLifecycleTests {
+    @Test @MainActor
+    func hoverTrackingAcceptsMouseMovementWithoutActivatingPanel() {
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 420),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+
+        AttachedPanelInteractionPolicy.enableHoverTracking(on: panel)
+
+        #expect(panel.acceptsMouseMovedEvents)
+        #expect(panel.styleMask.contains(.borderless))
+        #expect(panel.styleMask.contains(.nonactivatingPanel))
+    }
+
     @Test func edgePreviewChrome_onlyShowsDuringAttachedRevealAnimation() {
         #expect(AttachedPanelChromePolicy.isEdgePreviewVisible(isFinderAttached: true, isRevealAnimating: true))
         #expect(!AttachedPanelChromePolicy.isEdgePreviewVisible(isFinderAttached: true, isRevealAnimating: false))

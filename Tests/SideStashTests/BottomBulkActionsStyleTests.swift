@@ -3,53 +3,77 @@ import Testing
 @testable import SideStash
 
 struct BottomBulkActionsStyleTests {
-    @Test func bottomActions_useFinderToolbarCapsuleGeometry() {
-        #expect(SideStashSidebarChromePolicy.bottomActionsHeight >= 36)
-        #expect(SideStashSidebarChromePolicy.bottomActionsHeight <= 38)
-        #expect(abs(SideStashSidebarChromePolicy.bottomActionsCornerRadius - SideStashSidebarChromePolicy.bottomActionsHeight / 2) < 0.001)
-        #expect(SideStashSidebarChromePolicy.bottomActionButtonWidth >= 44)
-        #expect(SideStashSidebarChromePolicy.bottomActionButtonWidth <= 48)
+    @Test func emptyStashDisablesEveryAction() {
+        for action in SideStashBulkAction.allCases {
+            let availability = action.availability(
+                hasItems: false,
+                hasRestorableItems: false
+            )
+
+            #expect(!availability.isEnabled)
+            #expect(availability.reasonKey == "bulk.unavailable.empty")
+        }
     }
 
-    @Test func bottomActions_useSFSymbolNames() {
-        #expect(SideStashSidebarChromePolicy.trashAllSymbolName == "trash")
-        #expect(SideStashSidebarChromePolicy.moveAllToCurrentFolderSymbolName == "folder.badge.plus")
-        #expect(!SideStashSidebarChromePolicy.restoreAllSymbolName.isEmpty)
+    @Test func populatedStashEnablesTrashAndMove() {
+        #expect(
+            SideStashBulkAction.trashAll.availability(
+                hasItems: true,
+                hasRestorableItems: false
+            ) == .enabled
+        )
+        #expect(
+            SideStashBulkAction.moveAllToCurrentFolder.availability(
+                hasItems: true,
+                hasRestorableItems: false
+            ) == .enabled
+        )
     }
 
-    @Test func bottomActions_defineHoverTitlesForEveryAction() {
+    @Test func restoreRequiresAtLeastOneOriginalLocation() {
+        #expect(
+            SideStashBulkAction.restoreAll.availability(
+                hasItems: true,
+                hasRestorableItems: false
+            ) == .disabled(reasonKey: "bulk.restore.unavailable")
+        )
+        #expect(
+            SideStashBulkAction.restoreAll.availability(
+                hasItems: true,
+                hasRestorableItems: true
+            ) == .enabled
+        )
+    }
+
+    @Test func everyActionDefinesSymbolAndLocalizedPurpose() {
         #expect(SideStashBulkAction.allCases.count == 3)
+        #expect(SideStashBulkAction.allCases.allSatisfy { !$0.symbolName.isEmpty })
+        #expect(SideStashBulkAction.allCases.allSatisfy { !$0.titleKey.isEmpty })
         #expect(SideStashBulkAction.trashAll.titleKey == "bulk.trash.tooltip")
         #expect(SideStashBulkAction.moveAllToCurrentFolder.titleKey == "bulk.move_current.tooltip")
         #expect(SideStashBulkAction.restoreAll.titleKey == "bulk.restore.tooltip")
-        #expect(SideStashBulkAction.allCases.allSatisfy { !$0.titleKey.isEmpty })
-        #expect(SideStashSidebarChromePolicy.bottomActionHoverTitleYOffset > SideStashSidebarChromePolicy.bottomActionsHeight)
     }
 
-    @Test func bottomActions_symbolsExistOnCurrentMacOS() {
-        #expect(NSImage(systemSymbolName: SideStashSidebarChromePolicy.trashAllSymbolName, accessibilityDescription: nil) != nil)
-        #expect(NSImage(systemSymbolName: SideStashSidebarChromePolicy.moveAllToCurrentFolderSymbolName, accessibilityDescription: nil) != nil)
-        #expect(NSImage(systemSymbolName: SideStashSidebarChromePolicy.restoreAllSymbolName, accessibilityDescription: nil) != nil)
+    @Test func bottomActionsUseApprovedStableGeometry() {
+        #expect(SideStashSidebarChromePolicy.bottomActionsHeight == 40)
+        #expect(SideStashSidebarChromePolicy.bottomActionButtonWidth == 44)
+        #expect(SideStashSidebarChromePolicy.bottomActionsOverlayHeight == 84)
+        #expect(SideStashSidebarChromePolicy.bottomActionsTooltipGap == 8)
+        #expect(SideStashSidebarChromePolicy.bottomActionsIconSize == 18)
+        #expect(SideStashSidebarChromePolicy.bottomActionHoverScale == 1.04)
+        #expect(SideStashSidebarChromePolicy.bottomActionPressedScale == 0.94)
+        #expect(SideStashSidebarChromePolicy.bottomActionsDisabledIconOpacity == 0.28)
+        #expect(SideStashSidebarChromePolicy.bottomActionsTooltipDelay == 0.35)
     }
 
-    @Test func bottomActions_keepFinderLikeSubtleOpacity() {
-        #expect(SideStashSidebarChromePolicy.bottomActionsBackgroundAlpha < 0.75)
-        #expect(SideStashSidebarChromePolicy.bottomActionsBorderAlpha < 0.1)
-        #expect(SideStashSidebarChromePolicy.bottomActionsDisabledIconOpacity < SideStashSidebarChromePolicy.bottomActionsIconOpacity)
-    }
-
-    @Test func bottomActions_darkModeUsesFinderToolbarContrast() {
-        let light = SideStashSidebarStyle.bottomActionsAppearance(for: .light)
-        let dark = SideStashSidebarStyle.bottomActionsAppearance(for: .dark)
-
-        #expect(light.overlayBase == .white)
-        #expect(dark.overlayBase == .black)
-        #expect(dark.overlayAlpha < light.overlayAlpha)
-        #expect(dark.overlayAlpha >= 0.18)
-        #expect(dark.highlightStrokeAlpha < light.highlightStrokeAlpha)
-        #expect(dark.borderAlpha > light.borderAlpha)
-        #expect(dark.shadowOpacity <= light.shadowOpacity)
-        #expect(dark.iconOpacity >= 0.72)
-        #expect(dark.disabledIconOpacity < dark.iconOpacity)
+    @Test func bottomActionsSymbolsExistOnCurrentMacOS() {
+        for action in SideStashBulkAction.allCases {
+            #expect(
+                NSImage(
+                    systemSymbolName: action.symbolName,
+                    accessibilityDescription: nil
+                ) != nil
+            )
+        }
     }
 }

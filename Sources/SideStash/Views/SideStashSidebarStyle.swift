@@ -22,7 +22,7 @@ struct SideStashBottomActionsAppearance {
     let disabledIconOpacity: CGFloat
 }
 
-enum SideStashBulkAction: CaseIterable, Equatable {
+enum SideStashBulkAction: CaseIterable, Hashable {
     case trashAll
     case moveAllToCurrentFolder
     case restoreAll
@@ -227,24 +227,22 @@ enum SideStashSidebarChromePolicy {
         true
     }
 
-    static var bottomActionsHeight: CGFloat {
-        38
-    }
+    static let bottomActionsHeight: CGFloat = 40
+    static let bottomActionButtonWidth: CGFloat = 44
+    static let bottomActionsOverlayHeight: CGFloat = 84
+    static let bottomActionsBottomInset: CGFloat = 16
+    static let bottomActionsIconSize: CGFloat = 18
+    static let bottomActionsTooltipGap: CGFloat = 8
+    static let bottomActionsTooltipDelay: TimeInterval = 0.35
+    static let bottomActionHoverScale: CGFloat = 1.04
+    static let bottomActionPressedScale: CGFloat = 0.94
+    static let bottomActionsEnabledIconOpacity: CGFloat = 0.88
+    static let bottomActionsDisabledIconOpacity: CGFloat = 0.28
+    static let bottomActionsTooltipMaxWidth: CGFloat = 240
+    static let bottomActionsTooltipCornerRadius: CGFloat = 8
 
     static var bottomActionsCornerRadius: CGFloat {
         bottomActionsHeight / 2
-    }
-
-    static var bottomActionButtonWidth: CGFloat {
-        46
-    }
-
-    static var bottomActionsBottomInset: CGFloat {
-        16
-    }
-
-    static var bottomActionsIconSize: CGFloat {
-        20
     }
 
     static var bottomActionHoverTitleYOffset: CGFloat {
@@ -271,19 +269,7 @@ enum SideStashSidebarChromePolicy {
         0.86
     }
 
-    static var bottomActionsDisabledIconOpacity: CGFloat {
-        0.34
-    }
-
-    static var trashAllSymbolName: String {
-        "trash"
-    }
-
-    static var moveAllToCurrentFolderSymbolName: String {
-        "folder.badge.plus"
-    }
-
-    static var restoreAllSymbolName: String {
-        "arrow.uturn.backward"
-    }
+    static let trashAllSymbolName = "trash"
+    static let moveAllToCurrentFolderSymbolName = "folder.badge.plus"
+    static let restoreAllSymbolName = "arrow.uturn.backward"
 }

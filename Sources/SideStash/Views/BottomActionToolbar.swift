@@ -65,6 +65,18 @@ struct BottomActionInteractionState: Equatable {
         hoveredAction = nil
         tooltipAction = nil
     }
+
+    static func action(
+        at horizontalPosition: CGFloat,
+        buttonWidth: CGFloat
+    ) -> SideStashBulkAction? {
+        guard horizontalPosition >= 0, buttonWidth > 0 else { return nil }
+
+        let actions = SideStashBulkAction.allCases
+        let index = Int(horizontalPosition / buttonWidth)
+        guard actions.indices.contains(index) else { return nil }
+        return actions[index]
+    }
 }
 
 struct BottomActionToolbar: View {
@@ -121,32 +133,40 @@ struct BottomActionToolbar: View {
 
     @ViewBuilder
     private var toolbarSurface: some View {
-        if #available(macOS 26.0, *) {
-            buttonRow
-                .glassEffect(.regular.interactive(), in: Capsule())
-        } else {
-            buttonRow
-                .background(.regularMaterial, in: Capsule())
-                .overlay {
-                    Capsule()
-                        .stroke(
-                            Color.white.opacity(colorScheme == .dark ? 0.18 : 0.62),
-                            lineWidth: 1
-                        )
-                }
-                .overlay {
-                    Capsule()
-                        .stroke(
-                            Color.black.opacity(colorScheme == .dark ? 0.18 : 0.06),
-                            lineWidth: 1
-                        )
-                }
-                .shadow(
-                    color: .black.opacity(colorScheme == .dark ? 0.16 : 0.10),
-                    radius: 12,
-                    y: 6
-                )
+        Group {
+            if #available(macOS 26.0, *) {
+                buttonRow
+                    .background {
+                        Capsule()
+                            .fill(Color.primary.opacity(colorScheme == .dark ? 0.07 : 0.035))
+                            .allowsHitTesting(false)
+                    }
+                    .glassEffect(.regular.interactive(), in: Capsule())
+            } else {
+                buttonRow
+                    .background(.regularMaterial, in: Capsule())
+            }
         }
+        .overlay {
+            Capsule()
+                .stroke(
+                    Color.white.opacity(colorScheme == .dark ? 0.24 : 0.72),
+                    lineWidth: 1
+                )
+                .overlay {
+                    Capsule()
+                        .stroke(
+                            Color.black.opacity(colorScheme == .dark ? 0.30 : 0.10),
+                            lineWidth: 1
+                        )
+                }
+                .allowsHitTesting(false)
+        }
+        .shadow(
+            color: .black.opacity(colorScheme == .dark ? 0.28 : 0.16),
+            radius: 12,
+            y: 6
+        )
     }
 
     private var buttonRow: some View {
@@ -160,9 +180,21 @@ struct BottomActionToolbar: View {
             height: SideStashSidebarChromePolicy.bottomActionsHeight
         )
         .contentShape(Capsule())
-        .onHover { isHovering in
-            guard !isHovering else { return }
-            clearInteraction()
+        .onContinuousHover { phase in
+            switch phase {
+            case let .active(location):
+                guard let action = BottomActionInteractionState.action(
+                    at: location.x,
+                    buttonWidth: SideStashSidebarChromePolicy.bottomActionButtonWidth
+                ) else {
+                    clearInteraction()
+                    return
+                }
+                actionEntered(action)
+
+            case .ended:
+                clearInteraction()
+            }
         }
     }
 
@@ -202,10 +234,6 @@ struct BottomActionToolbar: View {
         )
         .contentShape(Rectangle())
         .help(helpText(for: action, availability: availability))
-        .onHover { isHovering in
-            guard isHovering else { return }
-            actionEntered(action)
-        }
     }
 
     @ViewBuilder
@@ -278,6 +306,8 @@ struct BottomActionToolbar: View {
     }
 
     private func actionEntered(_ action: SideStashBulkAction) {
+        guard interaction.hoveredAction != action else { return }
+
         tooltipTask?.cancel()
         tooltipTask = nil
 

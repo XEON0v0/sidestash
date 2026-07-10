@@ -155,4 +155,29 @@ struct BottomBulkActionsStyleTests {
             }
         }
     }
+
+    @Test func horizontalPointerPositionMapsToTheCorrectAction() {
+        let buttonWidth = SideStashSidebarChromePolicy.bottomActionButtonWidth
+
+        #expect(BottomActionInteractionState.action(
+            at: -1,
+            buttonWidth: buttonWidth
+        ) == nil)
+        #expect(BottomActionInteractionState.action(
+            at: 0,
+            buttonWidth: buttonWidth
+        ) == .trashAll)
+        #expect(BottomActionInteractionState.action(
+            at: buttonWidth,
+            buttonWidth: buttonWidth
+        ) == .moveAllToCurrentFolder)
+        #expect(BottomActionInteractionState.action(
+            at: buttonWidth * 2,
+            buttonWidth: buttonWidth
+        ) == .restoreAll)
+        #expect(BottomActionInteractionState.action(
+            at: buttonWidth * 3,
+            buttonWidth: buttonWidth
+        ) == nil)
+    }
 }

@@ -124,4 +124,49 @@ struct BottomBulkActionsStyleTests {
             )
         }
     }
+
+    @Test func firstHoverSchedulesTooltipWithoutDisplayingIt() {
+        var state = BottomActionInteractionState()
+
+        let needsDelay = state.enter(.trashAll)
+
+        #expect(needsDelay)
+        #expect(state.hoveredAction == .trashAll)
+        #expect(state.tooltipAction == nil)
+    }
+
+    @Test func revealOnlyDisplaysTheStillHoveredAction() {
+        var state = BottomActionInteractionState()
+        _ = state.enter(.trashAll)
+        _ = state.enter(.moveAllToCurrentFolder)
+
+        state.reveal(.trashAll)
+        #expect(state.tooltipAction == nil)
+
+        state.reveal(.moveAllToCurrentFolder)
+        #expect(state.tooltipAction == .moveAllToCurrentFolder)
+    }
+
+    @Test func movingBetweenActionsUpdatesAVisibleTooltipImmediately() {
+        var state = BottomActionInteractionState()
+        _ = state.enter(.trashAll)
+        state.reveal(.trashAll)
+
+        let needsDelay = state.enter(.restoreAll)
+
+        #expect(!needsDelay)
+        #expect(state.hoveredAction == .restoreAll)
+        #expect(state.tooltipAction == .restoreAll)
+    }
+
+    @Test func leavingToolbarClearsHoverAndTooltip() {
+        var state = BottomActionInteractionState()
+        _ = state.enter(.trashAll)
+        state.reveal(.trashAll)
+
+        state.leaveToolbar()
+
+        #expect(state.hoveredAction == nil)
+        #expect(state.tooltipAction == nil)
+    }
 }

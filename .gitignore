@@ -7,5 +7,6 @@ DerivedData/
 *.swp
 .sisyphus/
 .superpowers/
+.worktrees/
 .vscode/
 docs/superpowers/

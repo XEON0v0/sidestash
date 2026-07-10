@@ -3,52 +3,61 @@ import Testing
 @testable import SideStash
 
 struct BottomBulkActionsStyleTests {
-    @Test func emptyStashDisablesEveryAction() {
-        for action in SideStashBulkAction.allCases {
-            let availability = action.availability(
-                hasItems: false,
-                hasRestorableItems: false
+    @Test func availabilityMatrixCoversEmptyAndPopulatedStates() {
+        typealias AvailabilityCase = (
+            action: SideStashBulkAction,
+            hasItems: Bool,
+            hasRestorableItems: Bool,
+            expected: SideStashBottomActionAvailability,
+            expectedIsEnabled: Bool,
+            expectedReasonKey: String?
+        )
+
+        let emptyCases: [AvailabilityCase] = SideStashBulkAction.allCases.flatMap { action in
+            [false, true].map { hasRestorableItems in
+                (
+                    action: action,
+                    hasItems: false,
+                    hasRestorableItems: hasRestorableItems,
+                    expected: .disabled(reasonKey: "bulk.unavailable.empty"),
+                    expectedIsEnabled: false,
+                    expectedReasonKey: "bulk.unavailable.empty"
+                )
+            }
+        }
+        let populatedCases: [AvailabilityCase] = [
+            (.trashAll, true, false, .enabled, true, nil),
+            (.moveAllToCurrentFolder, true, false, .enabled, true, nil),
+            (
+                .restoreAll,
+                true,
+                false,
+                .disabled(reasonKey: "bulk.restore.unavailable"),
+                false,
+                "bulk.restore.unavailable"
+            ),
+            (.restoreAll, true, true, .enabled, true, nil),
+        ]
+
+        for testCase in emptyCases + populatedCases {
+            let availability = testCase.action.availability(
+                hasItems: testCase.hasItems,
+                hasRestorableItems: testCase.hasRestorableItems
             )
 
-            #expect(!availability.isEnabled)
-            #expect(availability.reasonKey == "bulk.unavailable.empty")
+            #expect(availability == testCase.expected)
+            #expect(availability.isEnabled == testCase.expectedIsEnabled)
+            #expect(availability.reasonKey == testCase.expectedReasonKey)
         }
-    }
-
-    @Test func populatedStashEnablesTrashAndMove() {
-        #expect(
-            SideStashBulkAction.trashAll.availability(
-                hasItems: true,
-                hasRestorableItems: false
-            ) == .enabled
-        )
-        #expect(
-            SideStashBulkAction.moveAllToCurrentFolder.availability(
-                hasItems: true,
-                hasRestorableItems: false
-            ) == .enabled
-        )
-    }
-
-    @Test func restoreRequiresAtLeastOneOriginalLocation() {
-        #expect(
-            SideStashBulkAction.restoreAll.availability(
-                hasItems: true,
-                hasRestorableItems: false
-            ) == .disabled(reasonKey: "bulk.restore.unavailable")
-        )
-        #expect(
-            SideStashBulkAction.restoreAll.availability(
-                hasItems: true,
-                hasRestorableItems: true
-            ) == .enabled
-        )
     }
 
     @Test func everyActionDefinesSymbolAndLocalizedPurpose() {
         #expect(SideStashBulkAction.allCases.count == 3)
         #expect(SideStashBulkAction.allCases.allSatisfy { !$0.symbolName.isEmpty })
         #expect(SideStashBulkAction.allCases.allSatisfy { !$0.titleKey.isEmpty })
+        #expect(SideStashBulkAction.trashAll.symbolName == "trash")
+        #expect(SideStashBulkAction.moveAllToCurrentFolder.symbolName == "folder.badge.plus")
+        #expect(SideStashBulkAction.restoreAll.symbolName == "arrow.uturn.backward")
         #expect(SideStashBulkAction.trashAll.titleKey == "bulk.trash.tooltip")
         #expect(SideStashBulkAction.moveAllToCurrentFolder.titleKey == "bulk.move_current.tooltip")
         #expect(SideStashBulkAction.restoreAll.titleKey == "bulk.restore.tooltip")
@@ -68,6 +77,41 @@ struct BottomBulkActionsStyleTests {
         #expect(SideStashSidebarChromePolicy.bottomActionsTooltipMaxWidth == 240)
         #expect(SideStashSidebarChromePolicy.bottomActionsTooltipCornerRadius == 8)
         #expect(SideStashSidebarChromePolicy.bottomActionsTooltipDelay == 0.35)
+    }
+
+    @Test func legacyBottomActionsKeepCapsuleAndHoverGeometry() {
+        #expect(
+            SideStashSidebarChromePolicy.bottomActionsCornerRadius
+                == SideStashSidebarChromePolicy.bottomActionsHeight / 2
+        )
+        #expect(
+            SideStashSidebarChromePolicy.bottomActionHoverTitleYOffset
+                > SideStashSidebarChromePolicy.bottomActionsHeight
+        )
+    }
+
+    @Test func legacyBottomActionsKeepSubtleOpacity() {
+        #expect(SideStashSidebarChromePolicy.bottomActionsBackgroundAlpha < 0.75)
+        #expect(SideStashSidebarChromePolicy.bottomActionsBorderAlpha < 0.1)
+        #expect(
+            SideStashSidebarChromePolicy.bottomActionsDisabledIconOpacity
+                < SideStashSidebarChromePolicy.bottomActionsIconOpacity
+        )
+    }
+
+    @Test func legacyBottomActionsPreserveLightDarkContrast() {
+        let light = SideStashSidebarStyle.bottomActionsAppearance(for: .light)
+        let dark = SideStashSidebarStyle.bottomActionsAppearance(for: .dark)
+
+        #expect(light.overlayBase == .white)
+        #expect(dark.overlayBase == .black)
+        #expect(dark.overlayAlpha < light.overlayAlpha)
+        #expect(dark.overlayAlpha >= 0.18)
+        #expect(dark.highlightStrokeAlpha < light.highlightStrokeAlpha)
+        #expect(dark.borderAlpha > light.borderAlpha)
+        #expect(dark.shadowOpacity <= light.shadowOpacity)
+        #expect(dark.iconOpacity >= 0.72)
+        #expect(dark.disabledIconOpacity < dark.iconOpacity)
     }
 
     @Test func bottomActionsSymbolsExistOnCurrentMacOS() {

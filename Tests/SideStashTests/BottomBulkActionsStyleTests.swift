@@ -66,7 +66,6 @@ struct BottomBulkActionsStyleTests {
     @Test func bottomActionsUseApprovedStableGeometry() {
         #expect(SideStashSidebarChromePolicy.bottomActionsHeight == 40)
         #expect(SideStashSidebarChromePolicy.bottomActionButtonWidth == 44)
-        #expect(SideStashSidebarChromePolicy.bottomActionsOverlayHeight == 84)
         #expect(SideStashSidebarChromePolicy.bottomActionsBottomInset == 16)
         #expect(SideStashSidebarChromePolicy.bottomActionsTooltipGap == 8)
         #expect(SideStashSidebarChromePolicy.bottomActionsIconSize == 18)

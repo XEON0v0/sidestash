@@ -7,8 +7,6 @@ enum InteractionMotionStyle {
     static let attachedRevealFirstStageDuration: TimeInterval = 0.08
     static let attachedRevealSecondStageDuration: TimeInterval = 0.12
 
-    static let dropZoneActiveFillAlpha: CGFloat = 0.16
-    static let dropZoneActiveStrokeAlpha: CGFloat = 0.22
     static let dropZoneHighlightDuration: TimeInterval = 0.16
 
     static let dragLiftScale: CGFloat = 0.96

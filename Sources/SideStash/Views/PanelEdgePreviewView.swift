@@ -24,6 +24,11 @@ final class PanelEdgePreviewView: NSView {
         nil
     }
 
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
@@ -39,10 +44,10 @@ final class PanelEdgePreviewView: NSView {
         let context = NSGraphicsContext.current?.cgContext
         guard let context else { return }
 
-        context.setFillColor(NSColor.white.withAlphaComponent(0.06).cgColor)
+        context.setFillColor(SideStashGlassPalette.edgePreviewFill.cgColor(for: effectiveAppearance))
         context.fill(stripRect)
 
-        context.setFillColor(NSColor.white.withAlphaComponent(0.18).cgColor)
+        context.setFillColor(SideStashGlassPalette.edgePreviewAccent.cgColor(for: effectiveAppearance))
         let accentRect: CGRect
         switch edge {
         case .right:

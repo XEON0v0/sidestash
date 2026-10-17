@@ -7,6 +7,9 @@ struct StashItem: Identifiable, Equatable {
     let url: URL
     let name: String
     let icon: NSImage
+    /// Light the icon casts onto the glass rims around it (see `GlassLightingScene`);
+    /// `nil` for icons with too little color to emit any.
+    let light: IconLight?
     let originalURL: URL?
 
     static func == (lhs: StashItem, rhs: StashItem) -> Bool {
@@ -37,6 +40,7 @@ class StashStore: ObservableObject {
     @Published var items: [StashItem] = []
 
     private var iconCache: [String: NSImage] = [:]
+    private var lightCache: [String: IconLight?] = [:]
 
     private var fileSystemWatcher: DispatchSourceFileSystemObject?
     private var fileSystemWatcherDescriptor: Int32 = -1
@@ -155,14 +159,22 @@ class StashStore: ObservableObject {
                     iconCache[url.path] = loaded
                     icon = loaded
                 }
+                let light: IconLight?
+                if let cached = lightCache[url.path] {
+                    light = cached
+                } else {
+                    light = IconLightSampler.light(from: icon)
+                    lightCache[url.path] = light
+                }
                 let originalPath = metadata[name]
                 let originalURL = originalPath.map { URL(fileURLWithPath: $0) }
-                return StashItem(url: url, name: name, icon: icon, originalURL: originalURL)
+                return StashItem(url: url, name: name, icon: icon, light: light, originalURL: originalURL)
             }
             .sorted { $0.name < $1.name }
 
         let currentPaths = Set(items.map(\.id))
         iconCache = iconCache.filter { currentPaths.contains($0.key) }
+        lightCache = lightCache.filter { currentPaths.contains($0.key) }
     }
 
     private func startFileWatching() {

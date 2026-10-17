@@ -1,19 +1,30 @@
 import SwiftUI
 import AppKit
 
+/// Pointer state of a file row. The AppKit row draws no background; it reports
+/// this state so SwiftUI can brighten, scale and fade the row's glass plate.
+struct FileRowInteraction: Equatable {
+    var isHovered = false
+    var isPressed = false
+    var isLifted = false
+}
+
 struct DraggableFileItem: NSViewRepresentable {
     let item: StashItem
     let store: StashStore
+    var onInteractionChanged: (FileRowInteraction) -> Void = { _ in }
 
     func makeNSView(context: Context) -> DraggableFileItemView {
         let view = DraggableFileItemView()
         view.item = item
         view.store = store
+        view.onInteractionChanged = onInteractionChanged
         return view
     }
 
     func updateNSView(_ nsView: DraggableFileItemView, context: Context) {
         nsView.item = item
+        nsView.onInteractionChanged = onInteractionChanged
     }
 }
 
@@ -24,6 +35,7 @@ class DraggableFileItemView: NSView {
             updateContent()
         }
     }
+    var onInteractionChanged: ((FileRowInteraction) -> Void)?
 
     private enum Layout {
         static let rowHeight: CGFloat = 38
@@ -39,6 +51,12 @@ class DraggableFileItemView: NSView {
     private var trackingArea: NSTrackingArea?
     private var activeDragItem: StashItem?
     private var isDraggingSessionActive = false
+    private(set) var interaction = FileRowInteraction() {
+        didSet {
+            guard interaction != oldValue else { return }
+            onInteractionChanged?(interaction)
+        }
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -52,7 +70,6 @@ class DraggableFileItemView: NSView {
 
     private func commonInit() {
         wantsLayer = true
-        layer?.cornerRadius = SideStashSidebarStyle.rowCornerRadius
         layer?.backgroundColor = NSColor.clear.cgColor
 
         imageView = NSImageView()
@@ -62,7 +79,8 @@ class DraggableFileItemView: NSView {
 
         label = NSTextField(labelWithString: "")
         label.font = NSFont.systemFont(ofSize: Layout.labelFontSize, weight: .medium)
-        label.textColor = NSColor.labelColor.withAlphaComponent(0.92)
+        // Plain system color: an alpha variant would freeze at the launch appearance.
+        label.textColor = .labelColor
         label.lineBreakMode = .byTruncatingTail
         label.maximumNumberOfLines = 1
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -85,9 +103,10 @@ class DraggableFileItemView: NSView {
         if let existing = trackingArea {
             removeTrackingArea(existing)
         }
+        // The panel never activates the app, so hover has to track while inactive.
         let area = NSTrackingArea(
             rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
             owner: self,
             userInfo: nil
         )
@@ -96,17 +115,29 @@ class DraggableFileItemView: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
-        CATransaction.begin()
-        CATransaction.setAnimationDuration(0.18)
-        layer?.backgroundColor = NSColor.white.withAlphaComponent(SideStashSidebarStyle.rowHoverFillAlpha).cgColor
-        CATransaction.commit()
+        setHovered(true)
     }
 
     override func mouseExited(with event: NSEvent) {
-        CATransaction.begin()
-        CATransaction.setAnimationDuration(0.18)
-        layer?.backgroundColor = NSColor.clear.cgColor
-        CATransaction.commit()
+        setHovered(false)
+    }
+
+    func setHovered(_ hovered: Bool) {
+        interaction.isHovered = hovered
+    }
+
+    func setPressed(_ pressed: Bool) {
+        interaction.isPressed = pressed
+    }
+
+    /// A lifted row is being dragged out; it is no longer pressed.
+    func setLifted(_ lifted: Bool) {
+        var next = interaction
+        next.isLifted = lifted
+        if lifted {
+            next.isPressed = false
+        }
+        interaction = next
     }
 
     private func updateContent() {
@@ -115,7 +146,12 @@ class DraggableFileItemView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        // Capture to prepare for drag
+        // Mouse down only prepares a drag; it also presses the row's glass plate.
+        setPressed(true)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        setPressed(false)
     }
 
     override func rightMouseDown(with event: NSEvent) {
@@ -170,6 +206,7 @@ class DraggableFileItemView: NSView {
 
         activeDragItem = item
         isDraggingSessionActive = true
+        setLifted(true)
         setDragLiftAppearance(lifted: true, animated: true)
 
         let session = beginDraggingSession(with: [draggingItem], event: event, source: self)
@@ -209,6 +246,7 @@ extension DraggableFileItemView: NSDraggingSource {
         let draggedItem = activeDragItem ?? item
         activeDragItem = nil
         isDraggingSessionActive = false
+        setLifted(false)
 
         if !didCompleteDrop {
             setDragLiftAppearance(lifted: false, animated: true)

@@ -67,6 +67,8 @@ class StashWindowManager {
     static let shared = StashWindowManager(store: StashStore())
     private let logger = Logger(subsystem: "app.sidestash.SideStash", category: "Windowing")
     private let store: StashStore
+    /// Shared light for every glass rim in the panel.
+    private let lightingScene = GlassLightingScene()
     private var panel: NSPanel?
     private var currentPlacement: PanelPlacement?
     private var attachedFinderWindowSnapshot: FinderWindowSnapshot?
@@ -133,6 +135,8 @@ class StashWindowManager {
             )
             self?.stopFinderFollow()
             self?.removeEscapeKeyMonitor()
+            // No exit event arrives once the panel is gone.
+            self?.lightingScene.pointerExited(animated: false)
             DragDetector.shared.startMonitoring()
         }
     }
@@ -177,60 +181,39 @@ class StashWindowManager {
         panel.hidesOnDeactivate = false
         panel.isMovableByWindowBackground = false
         panel.hasShadow = SideStashSidebarChromePolicy.usesSystemPanelShadow
+        panel.isOpaque = false
         panel.backgroundColor = .clear
 
         let hostingView = NSHostingView(rootView: makeContentView(height: panelRect.height))
 
-        let containerView = NSView(frame: panelRect)
-        containerView.wantsLayer = true
-        containerView.layer?.cornerRadius = SideStashSidebarStyle.paneCornerRadius
-        containerView.layer?.borderWidth = SideStashSidebarChromePolicy.paneBorderWidth
-        containerView.layer?.borderColor = NSColor.white.withAlphaComponent(SideStashSidebarStyle.paneBorderAlpha).cgColor
-        containerView.layer?.shadowColor = NSColor.black.cgColor
-        containerView.layer?.shadowOpacity = SideStashSidebarStyle.paneShadowOpacity
-        containerView.layer?.shadowRadius = SideStashSidebarStyle.paneShadowBlur
-        containerView.layer?.shadowOffset = NSSize(width: 0, height: SideStashSidebarChromePolicy.paneShadowOffsetY)
-
-        let glassView: NSView = {
-            if #available(macOS 26, *) {
-                let gv = NSGlassEffectView()
-                gv.cornerRadius = SideStashSidebarStyle.paneCornerRadius
-                gv.style = .regular
-                return gv
-            } else {
-                let vev = NSVisualEffectView()
-                vev.material = .sidebar
-                vev.blendingMode = .withinWindow
-                vev.state = .active
-                vev.wantsLayer = true
-                vev.layer?.cornerRadius = SideStashSidebarStyle.paneCornerRadius
-                return vev
-            }
-        }()
-        glassView.frame = containerView.bounds
-        glassView.autoresizingMask = [.width, .height]
-        containerView.addSubview(glassView)
-
-        let dropZone = DropZoneNSView(frame: containerView.bounds)
+        // The drop zone clips everything to the panel's rounded shape and is
+        // hosted through the glass view's contentView, the only placement
+        // NSGlassEffectView guarantees to render inside the glass.
+        let dropZone = DropZoneNSView(frame: panelRect)
         dropZone.store = store
+        dropZone.onPointerMoved = { [weak self] point in
+            guard let self else { return }
+            if let point {
+                self.lightingScene.pointerMoved(to: point)
+            } else {
+                self.lightingScene.pointerExited()
+            }
+        }
         dropZone.autoresizingMask = [.width, .height]
-        dropZone.wantsLayer = true
-        dropZone.layer?.cornerRadius = SideStashSidebarStyle.paneCornerRadius
-        dropZone.layer?.masksToBounds = true
-        containerView.addSubview(dropZone)
 
         hostingView.frame = dropZone.bounds
         hostingView.autoresizingMask = [.width, .height]
-        hostingView.wantsLayer = true
-        hostingView.layer?.cornerRadius = SideStashSidebarStyle.paneCornerRadius
         dropZone.addSubview(hostingView)
+        // The SwiftUI root fills the hosting view, so its coordinates are the
+        // lighting scene's (the drop zone reports the pointer the same way).
+        lightingScene.coordinateRoot = hostingView
 
-        let edgePreviewView = PanelEdgePreviewView(frame: containerView.bounds)
+        let edgePreviewView = PanelEdgePreviewView(frame: dropZone.bounds)
         edgePreviewView.autoresizingMask = [.width, .height]
         edgePreviewView.isHidden = true
         dropZone.addSubview(edgePreviewView)
 
-        panel.contentView = containerView
+        panel.contentView = StashPanelSurfaceFactory.make(frame: panelRect, contentView: dropZone)
         self.panel = panel
         self.hostingView = hostingView
         self.edgePreviewView = edgePreviewView
@@ -443,6 +426,7 @@ class StashWindowManager {
                 }
             )
             .environmentObject(store)
+            .environment(\.glassLightingScene, lightingScene)
         )
     }
 

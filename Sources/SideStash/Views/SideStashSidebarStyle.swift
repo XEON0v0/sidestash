@@ -1,16 +1,4 @@
 import AppKit
-import SwiftUI
-
-struct SideStashHeaderAppearance {
-    let overlayBase: NSColor
-    let overlayAlpha: CGFloat
-    let textOpacity: CGFloat
-}
-
-struct SideStashPaneAppearance {
-    let contentBackground: NSColor
-    let contentBackgroundAlpha: CGFloat
-}
 
 enum SideStashBulkAction: CaseIterable, Hashable {
     case trashAll
@@ -40,67 +28,32 @@ enum SideStashBulkAction: CaseIterable, Hashable {
     }
 }
 
+/// Layout metrics for the Liquid Glass panel. Colors live in
+/// `SideStashGlassPalette`; the glass itself is system-drawn, so there are no
+/// fill, stroke or shadow tokens here.
 enum SideStashSidebarStyle {
-    static let paneCornerRadius: CGFloat = 20
-    static let paneFillAlpha: CGFloat = 0.18
-    static let paneBorderAlpha: CGFloat = 0.1
-    static let paneShadowOpacity: Float = 0.1
-    static let paneShadowBlur: CGFloat = 20
-    static let sidebarPlateInset: CGFloat = 5
-    static let sidebarPlateCornerRadius: CGFloat = 18
+    /// Corner radius of the panel's glass body and of the drop zone that
+    /// clips content to it.
+    static let paneCornerRadius: CGFloat = 24
 
     static let headerHeight: CGFloat = 32
-    static let headerCornerRadius: CGFloat = 0
     static let headerHorizontalInset: CGFloat = 12
     static let headerTopInset: CGFloat = 16
-    static let headerBackgroundAlpha: CGFloat = 0
-    static let headerShadowOpacity: Float = 0
 
-    static let rowHeight: CGFloat = 39
-    static let rowCornerRadius: CGFloat = 10
-    static let rowHoverFillAlpha: CGFloat = 0.09
+    /// Each file sits on its own glass plate.
+    static let rowHeight: CGFloat = 44
+    static let rowSpacing: CGFloat = 6
+    /// List inset from the panel edge; with `rowCornerRadius` it keeps the
+    /// plates concentric with the panel (24 - 12 = 12).
+    static let fileListInset: CGFloat = 12
+    static let rowCornerRadius: CGFloat = 12
+    /// Center of the file icon inside a row: 8 pt leading padding + half the 32 pt icon.
+    static let rowIconCenterX: CGFloat = 24
     static let emptyIconSize: CGFloat = 44
     static let emptySpacing: CGFloat = 10
-
-    static func headerAppearance(for colorScheme: ColorScheme) -> SideStashHeaderAppearance {
-        switch colorScheme {
-        case .dark:
-            return SideStashHeaderAppearance(
-                overlayBase: .white,
-                overlayAlpha: 0,
-                textOpacity: 0.88
-            )
-        default:
-            return SideStashHeaderAppearance(
-                overlayBase: .black,
-                overlayAlpha: 0,
-                textOpacity: 0.9
-            )
-        }
-    }
-
-    static func paneAppearance(for colorScheme: ColorScheme) -> SideStashPaneAppearance {
-        switch colorScheme {
-        case .dark:
-            return SideStashPaneAppearance(
-                contentBackground: .windowBackgroundColor,
-                contentBackgroundAlpha: 0.18
-            )
-        default:
-            return SideStashPaneAppearance(
-                contentBackground: .windowBackgroundColor,
-                contentBackgroundAlpha: 0.4
-            )
-        }
-    }
-
 }
 
 enum SideStashSidebarChromePolicy {
-    static var contentTopInset: CGFloat {
-        SideStashSidebarStyle.headerTopInset + SideStashSidebarStyle.headerHeight + 6
-    }
-
     static var headerContainerHeight: CGFloat {
         58
     }
@@ -129,73 +82,12 @@ enum SideStashSidebarChromePolicy {
         0.16
     }
 
-    static var headerMaterial: NSVisualEffectView.Material {
-        .sidebar
-    }
-
-    static var headerBlendingMode: NSVisualEffectView.BlendingMode {
-        .behindWindow
-    }
-
-    static var isHeaderMaterialEmphasized: Bool {
-        false
-    }
-
-    static var headerHighlightStrokeAlpha: CGFloat {
-        0
-    }
-
-    static var headerSubtleBorderAlpha: CGFloat {
-        0
-    }
-
-    static var headerShadowRadius: CGFloat {
-        0
-    }
-
-    static var headerShadowYOffset: CGFloat {
-        0
-    }
-
-    static var paneBorderWidth: CGFloat {
-        1
-    }
-
-    static var outerPaneFillAlpha: CGFloat {
-        0.12
-    }
-
-    static var sidebarPlateHighlightStrokeAlpha: CGFloat {
-        0.56
-    }
-
-    static var sidebarPlateSubtleBorderAlpha: CGFloat {
-        0.035
-    }
-
-    static var sidebarPlateShadowOpacity: CGFloat {
-        0.075
-    }
-
-    static var sidebarPlateShadowRadius: CGFloat {
-        18
-    }
-
-    static var sidebarPlateShadowYOffset: CGFloat {
-        8
-    }
-
-    static var paneShadowOffsetY: CGFloat {
-        -2
-    }
-
     static var usesSystemPanelShadow: Bool {
         true
     }
 
     static let bottomActionsHeight: CGFloat = 40
     static let bottomActionButtonWidth: CGFloat = 44
-    static let bottomActionsOverlayHeight: CGFloat = 84
     static let bottomActionsBottomInset: CGFloat = 16
     static let bottomActionsIconSize: CGFloat = 18
     static let bottomActionsTooltipGap: CGFloat = 8

@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct StashContentView: View {
-    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject var store: StashStore
+    @Environment(\.glassLightingScene) private var lightingScene
     @State private var pendingAlert: BulkActionAlert?
 
     var panelHeight: CGFloat = 420
@@ -29,19 +29,36 @@ struct StashContentView: View {
         static let emptyStateFontSize: CGFloat = 14
     }
 
+    /// Content sits directly on the panel's single NSGlassEffectView (see
+    /// StashPanelSurfaceFactory), so nothing here paints a background. Header
+    /// and toolbar are safe-area bars: rows scrolling beneath them get the
+    /// system's soft scroll-edge effect.
     var body: some View {
-        let paneAppearance = SideStashSidebarStyle.paneAppearance(for: colorScheme)
-
-        ZStack {
-            Color(nsColor: paneAppearance.contentBackground)
-                .opacity(SideStashSidebarChromePolicy.outerPaneFillAlpha)
-                .clipShape(RoundedRectangle(cornerRadius: SideStashSidebarStyle.paneCornerRadius, style: .continuous))
-                .allowsHitTesting(false)
-
-            sidebarPlate(paneAppearance: paneAppearance)
-                .padding(SideStashSidebarStyle.sidebarPlateInset)
-        }
-        .frame(width: 320, height: panelHeight)
+        stashContent
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaBar(edge: .top, spacing: 0) {
+                floatingHeader
+                    .padding(.top, SideStashSidebarStyle.headerTopInset)
+                    .padding(.horizontal, SideStashSidebarStyle.headerHorizontalInset)
+                    .frame(height: SideStashSidebarChromePolicy.headerContainerHeight, alignment: .top)
+            }
+            .safeAreaBar(edge: .bottom, spacing: 0) {
+                bottomBulkActions
+                    .padding(.bottom, SideStashSidebarChromePolicy.bottomActionsBottomInset)
+            }
+            .scrollEdgeEffectStyle(.soft, for: .vertical)
+            .frame(width: 320, height: panelHeight)
+            // Supplements the panel's native glass edge with the shared light.
+            .overlay {
+                GlassRim(shape: .roundedRect(cornerRadius: SideStashSidebarStyle.paneCornerRadius), kind: .panel)
+            }
+            // One coordinate space for every glass rim and icon light.
+            .coordinateSpace(.named(GlassLightingSpace.name))
+            .onGeometryChange(for: CGSize.self) { proxy in
+                proxy.size
+            } action: { size in
+                lightingScene?.bounds = CGRect(origin: .zero, size: size)
+            }
         .onChange(of: pendingAlert?.id) { _, alertID in
             onAlertPresentationChanged?(alertID != nil)
         }
@@ -74,61 +91,24 @@ struct StashContentView: View {
         }
     }
 
-    private func sidebarPlate(paneAppearance: SideStashPaneAppearance) -> some View {
-        ZStack(alignment: .top) {
-            GlassBackgroundView(cornerRadius: SideStashSidebarStyle.sidebarPlateCornerRadius)
-                .overlay(
-                    Color(nsColor: paneAppearance.contentBackground)
-                        .opacity(paneAppearance.contentBackgroundAlpha)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: SideStashSidebarStyle.sidebarPlateCornerRadius, style: .continuous)
-                        .stroke(Color.white.opacity(SideStashSidebarChromePolicy.sidebarPlateHighlightStrokeAlpha), lineWidth: 1)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: SideStashSidebarStyle.sidebarPlateCornerRadius, style: .continuous)
-                        .stroke(Color.black.opacity(SideStashSidebarChromePolicy.sidebarPlateSubtleBorderAlpha), lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: SideStashSidebarStyle.sidebarPlateCornerRadius, style: .continuous))
-                .shadow(
-                    color: .black.opacity(SideStashSidebarChromePolicy.sidebarPlateShadowOpacity),
-                    radius: SideStashSidebarChromePolicy.sidebarPlateShadowRadius,
-                    y: SideStashSidebarChromePolicy.sidebarPlateShadowYOffset
-                )
-                .allowsHitTesting(false)
-
-            VStack(spacing: 0) {
-                Color.clear
-                    .frame(height: SideStashSidebarChromePolicy.headerContainerHeight)
-
-                if store.items.isEmpty {
-                    emptyState
-                } else {
-                    fileGrid
-                }
-            }
-
-            floatingHeader
-                .padding(.top, SideStashSidebarStyle.headerTopInset)
-                .padding(.horizontal, SideStashSidebarStyle.headerHorizontalInset)
-
-            bottomBulkActions
-                .padding(.bottom, SideStashSidebarChromePolicy.bottomActionsBottomInset)
-                .frame(maxHeight: .infinity, alignment: .bottom)
+    @ViewBuilder
+    private var stashContent: some View {
+        if store.items.isEmpty {
+            emptyState
+        } else {
+            fileGrid
         }
     }
 
     private var floatingHeader: some View {
-        let appearance = SideStashSidebarStyle.headerAppearance(for: colorScheme)
-
-        return ZStack {
+        ZStack {
             HeaderDragHandle()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .allowsHitTesting(true)
 
             Text("SideStash")
                 .font(.system(size: Layout.headerTitleFontSize, weight: .semibold))
-                .foregroundStyle(.primary.opacity(appearance.textOpacity))
+                .foregroundStyle(.primary)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, SideStashSidebarChromePolicy.headerTitleReservedSideWidth)
@@ -168,20 +148,14 @@ struct StashContentView: View {
 
     private var fileGrid: some View {
         ScrollView {
-            VStack(spacing: 0) {
+            // Lazy, so only visible rows pay for their glass plate and rim light.
+            LazyVStack(spacing: SideStashSidebarStyle.rowSpacing) {
                 ForEach(store.items) { item in
                     FileGridItem(item: item)
-                        .transition(.opacity.combined(with: .move(edge: .leading)))
+                        .transition(.opacity.combined(with: .scale(scale: 0.94)))
                 }
             }
-            .padding(.top, 12)
-            .padding(.horizontal, 12)
-            .padding(
-                .bottom,
-                SideStashSidebarChromePolicy.bottomActionsOverlayHeight
-                    + SideStashSidebarChromePolicy.bottomActionsBottomInset
-                    + 12
-            )
+            .padding(SideStashSidebarStyle.fileListInset)
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.7), value: store.items.count)
     }

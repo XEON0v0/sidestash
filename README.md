@@ -13,7 +13,7 @@ SideStash is a macOS menu bar app that gives Finder a temporary floating file st
 
 ## Requirements
 
-- macOS 14 or newer
+- macOS 26 or newer
 - Swift toolchain compatible with Swift Package Manager
 
 ## Build

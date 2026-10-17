@@ -80,8 +80,6 @@ struct BottomActionInteractionState: Equatable {
 }
 
 struct BottomActionToolbar: View {
-    @Environment(\.colorScheme) private var colorScheme
-
     let hasItems: Bool
     let hasRestorableItems: Bool
     let perform: (SideStashBulkAction) -> Void
@@ -94,79 +92,37 @@ struct BottomActionToolbar: View {
             * CGFloat(SideStashBulkAction.allCases.count)
     }
 
-    @ViewBuilder
+    /// One interactive Liquid Glass capsule holds all three actions; native
+    /// glass supplies its own depth, so no extra shadow. Layout covers only
+    /// the capsule, keeping the bottom safe-area bar (and its scroll-edge
+    /// effect) compact; the tooltip floats above it in an overlay.
     var body: some View {
-        if #available(macOS 26.0, *) {
-            GlassEffectContainer(spacing: SideStashSidebarChromePolicy.bottomActionsTooltipGap) {
-                toolbarLayout
-            }
-        } else {
-            toolbarLayout
+        GlassEffectContainer(spacing: SideStashSidebarChromePolicy.bottomActionsTooltipGap) {
+            buttonRow
+                .glassEffect(.regular.interactive(), in: Capsule())
+                .overlay(alignment: .bottom) {
+                    if let tooltipAction = interaction.tooltipAction {
+                        tooltip(for: tooltipAction)
+                            .padding(
+                                .bottom,
+                                SideStashSidebarChromePolicy.bottomActionsHeight
+                                    + SideStashSidebarChromePolicy.bottomActionsTooltipGap
+                            )
+                            .frame(width: SideStashSidebarChromePolicy.bottomActionsTooltipMaxWidth)
+                            .allowsHitTesting(false)
+                            .transition(.opacity.combined(with: .offset(y: 4)))
+                    }
+                }
         }
-    }
-
-    private var toolbarLayout: some View {
-        ZStack(alignment: .bottom) {
-            if let tooltipAction = interaction.tooltipAction {
-                tooltip(for: tooltipAction)
-                    .padding(
-                        .bottom,
-                        SideStashSidebarChromePolicy.bottomActionsHeight
-                            + SideStashSidebarChromePolicy.bottomActionsTooltipGap
-                    )
-                    .transition(.opacity.combined(with: .offset(y: 4)))
-                    .zIndex(1)
-            }
-
-            toolbarSurface
+        // Outside the container, which may re-layer glass above its children;
+        // the container's layout is exactly the capsule.
+        .overlay {
+            GlassRim(shape: .capsule, kind: .pill)
         }
-        .frame(
-            width: SideStashSidebarChromePolicy.bottomActionsTooltipMaxWidth,
-            height: SideStashSidebarChromePolicy.bottomActionsOverlayHeight,
-            alignment: .bottom
-        )
         .animation(.easeOut(duration: 0.12), value: interaction.tooltipAction)
         .onDisappear {
             clearInteraction()
         }
-    }
-
-    @ViewBuilder
-    private var toolbarSurface: some View {
-        Group {
-            if #available(macOS 26.0, *) {
-                buttonRow
-                    .background {
-                        Capsule()
-                            .fill(Color.primary.opacity(colorScheme == .dark ? 0.07 : 0.035))
-                            .allowsHitTesting(false)
-                    }
-                    .glassEffect(.regular.interactive(), in: Capsule())
-            } else {
-                buttonRow
-                    .background(.regularMaterial, in: Capsule())
-            }
-        }
-        .overlay {
-            Capsule()
-                .stroke(
-                    Color.white.opacity(colorScheme == .dark ? 0.24 : 0.72),
-                    lineWidth: 1
-                )
-                .overlay {
-                    Capsule()
-                        .stroke(
-                            Color.black.opacity(colorScheme == .dark ? 0.30 : 0.10),
-                            lineWidth: 1
-                        )
-                }
-                .allowsHitTesting(false)
-        }
-        .shadow(
-            color: .black.opacity(colorScheme == .dark ? 0.28 : 0.16),
-            radius: 12,
-            y: 6
-        )
     }
 
     private var buttonRow: some View {
@@ -236,38 +192,15 @@ struct BottomActionToolbar: View {
         .help(helpText(for: action, availability: availability))
     }
 
-    @ViewBuilder
     private func tooltip(for action: SideStashBulkAction) -> some View {
-        if #available(macOS 26.0, *) {
-            tooltipContent(for: action)
-                .glassEffect(
-                    .regular,
-                    in: RoundedRectangle(
-                        cornerRadius: SideStashSidebarChromePolicy.bottomActionsTooltipCornerRadius,
-                        style: .continuous
-                    )
+        tooltipContent(for: action)
+            .glassEffect(
+                .regular,
+                in: RoundedRectangle(
+                    cornerRadius: SideStashSidebarChromePolicy.bottomActionsTooltipCornerRadius,
+                    style: .continuous
                 )
-        } else {
-            tooltipContent(for: action)
-                .background(
-                    .regularMaterial,
-                    in: RoundedRectangle(
-                        cornerRadius: SideStashSidebarChromePolicy.bottomActionsTooltipCornerRadius,
-                        style: .continuous
-                    )
-                )
-                .overlay {
-                    RoundedRectangle(
-                        cornerRadius: SideStashSidebarChromePolicy.bottomActionsTooltipCornerRadius,
-                        style: .continuous
-                    )
-                    .stroke(
-                        Color.white.opacity(colorScheme == .dark ? 0.18 : 0.62),
-                        lineWidth: 1
-                    )
-                }
-                .shadow(color: .black.opacity(0.12), radius: 10, y: 5)
-        }
+            )
     }
 
     private func tooltipContent(for action: SideStashBulkAction) -> some View {
@@ -330,7 +263,6 @@ struct BottomActionToolbar: View {
 }
 
 private struct BottomActionButtonStyle: ButtonStyle {
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.isEnabled) private var isEnabled
 
     let isHovered: Bool
@@ -353,12 +285,10 @@ private struct BottomActionButtonStyle: ButtonStyle {
                     : SideStashSidebarChromePolicy.bottomActionsDisabledIconOpacity
             ))
             .background {
+                // The capsule's glass is the surface; hover only needs a faint
+                // lens, and `.primary` keeps it correct in Light and Dark.
                 Capsule()
-                    .fill(Color.white.opacity(colorScheme == .dark ? 0.10 : 0.48))
-                    .overlay {
-                        Capsule()
-                            .stroke(Color.white.opacity(0.34), lineWidth: 1)
-                    }
+                    .fill(Color.primary.opacity(0.10))
                     .padding(.horizontal, 2)
                     .padding(.vertical, 4)
                     .opacity(isEmphasized ? 1 : 0)

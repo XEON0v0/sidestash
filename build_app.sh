@@ -6,13 +6,21 @@ BUNDLE_ID="app.sidestash.SideStash"
 VERSION="1.0.0"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BUILD_DIR="${SCRIPT_DIR}/.build"
-RELEASE_BIN="${BUILD_DIR}/release/${APP_NAME}"
-APP_BUNDLE="${SCRIPT_DIR}/${APP_NAME}.app"
+# Optional overrides let build output and the bundle live outside the workspace.
+BUILD_DIR="${SIDESTASH_BUILD_DIR:-${SCRIPT_DIR}/.build}"
+APP_OUTPUT_DIR="${SIDESTASH_APP_DIR:-${SCRIPT_DIR}}"
+APP_BUNDLE="${APP_OUTPUT_DIR}/${APP_NAME}.app"
+
+SWIFT_BUILD_ARGS=(-c release --scratch-path "${BUILD_DIR}")
+if [ -n "${SIDESTASH_SWIFTPM_CACHE:-}" ]; then
+    SWIFT_BUILD_ARGS+=(--cache-path "${SIDESTASH_SWIFTPM_CACHE}")
+fi
 
 echo "==> Building release binary..."
 cd "${SCRIPT_DIR}"
-swift build -c release
+swift build "${SWIFT_BUILD_ARGS[@]}"
+# Ask SwiftPM for the real product path; SWIFTPM_BUILD_DIR can override --scratch-path.
+RELEASE_BIN="$(swift build "${SWIFT_BUILD_ARGS[@]}" --show-bin-path)/${APP_NAME}"
 
 echo "==> Creating .app bundle..."
 rm -rf "${APP_BUNDLE}"
@@ -46,7 +54,7 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" <<EOF
     <key>CFBundleShortVersionString</key>
     <string>${VERSION}</string>
     <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
+    <string>26.0</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>SideStash needs access to Finder to find the current Finder folder for moving stashed files.</string>
     <key>LSUIElement</key>

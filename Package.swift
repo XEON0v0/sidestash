@@ -5,7 +5,8 @@ let package = Package(
     name: "SideStash",
     defaultLocalization: "en",
     platforms: [
-        .macOS(.v14)
+        // String form: the typed `.v26` constant needs PackageDescription 6.2.
+        .macOS("26.0")
     ],
     targets: [
         .executableTarget(

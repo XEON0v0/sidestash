@@ -26,8 +26,10 @@ struct InteractionMotionTests {
     }
 
     @Test func dropZoneStyle_keepsFeedbackLightweight() {
-        #expect(InteractionMotionStyle.dropZoneActiveFillAlpha < 0.2)
-        #expect(InteractionMotionStyle.dropZoneActiveStrokeAlpha < 0.3)
+        for name in [NSAppearance.Name.aqua, .darkAqua] {
+            let appearance = NSAppearance(named: name)!
+            #expect(SideStashGlassPalette.dropTargetFill.resolved(for: appearance).alphaComponent < 0.2)
+        }
         #expect(InteractionMotionStyle.dropZoneHighlightDuration > 0)
     }
 
@@ -40,7 +42,6 @@ struct InteractionMotionTests {
 
     @Test func motionConstants_keepSystemLevelMotionSubtle() {
         #expect(InteractionMotionStyle.attachedPeekInset < InteractionMotionStyle.attachedPreviewInset)
-        #expect(InteractionMotionStyle.dropZoneActiveFillAlpha < 0.2)
         #expect(InteractionMotionStyle.dragLiftScale < 1.0)
         #expect(InteractionMotionStyle.dragLiftAlpha < 1.0)
     }

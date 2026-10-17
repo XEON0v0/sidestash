@@ -240,21 +240,18 @@ class StashWindowManager {
         }
 
         if let button = statusItemButton {
-            let buttonRect = button.window?.convertToScreen(button.frame) ?? NSRect(x: 300, y: 300, width: 0, height: 0)
-            let targetRect = NSRect(
-                x: buttonRect.midX - (Layout.panelWidth / 2),
-                y: buttonRect.minY - Layout.panelHeight - Layout.statusItemGap,
-                width: Layout.panelWidth,
-                height: Layout.panelHeight
+            let buttonRect = button.window?.convertToScreen(button.frame)
+            let fallbackVisibleFrame = screenContaining(NSEvent.mouseLocation)?.visibleFrame
+                ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+            let placement = PanelPlacement.belowStatusItem(
+                buttonRect: buttonRect,
+                panelSize: panelSize,
+                screens: NSScreen.screens.map(PanelScreenGeometry.init),
+                fallbackVisibleFrame: fallbackVisibleFrame,
+                gap: Layout.statusItemGap,
+                hiddenLift: Layout.statusItemHiddenLift
             )
-            let hiddenRect = targetRect.offsetBy(dx: 0, dy: Layout.statusItemHiddenLift)
-            let placement = PanelPlacement(
-                isFinderAttached: false,
-                edge: .right,
-                targetRect: targetRect,
-                previewRect: targetRect,
-                hiddenRect: hiddenRect
-            )
+            logger.debug("Status item button rect=\(String(describing: buttonRect), privacy: .public)")
             logPlacement(source: "statusItemFallback", placement: placement, finderRect: nil)
             return placement
         }

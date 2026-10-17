@@ -5,6 +5,17 @@ enum PanelEdge: Equatable {
     case right
 }
 
+struct PanelScreenGeometry: Equatable {
+    let frame: NSRect
+    let visibleFrame: NSRect
+}
+
+extension PanelScreenGeometry {
+    init(_ screen: NSScreen) {
+        self.init(frame: screen.frame, visibleFrame: screen.visibleFrame)
+    }
+}
+
 struct PanelPlacement: Equatable {
     let isFinderAttached: Bool
     let edge: PanelEdge
@@ -93,6 +104,65 @@ struct PanelPlacement: Equatable {
             previewRect: targetRect,
             hiddenRect: hiddenRect
         )
+    }
+
+    /// Places the panel below the status item button. When the button rect is missing or lies
+    /// outside every screen (e.g. the item was moved into the menu bar overflow area), the panel
+    /// falls back to the top-right corner of `fallbackVisibleFrame`, just below the menu bar.
+    static func belowStatusItem(
+        buttonRect: NSRect?,
+        panelSize: NSSize,
+        screens: [PanelScreenGeometry],
+        fallbackVisibleFrame: NSRect,
+        gap: CGFloat,
+        hiddenLift: CGFloat
+    ) -> PanelPlacement {
+        let proposedRect: NSRect
+        let visibleFrame: NSRect
+
+        if let buttonRect, let screen = screenHostingStatusItem(buttonRect, in: screens) {
+            visibleFrame = screen.visibleFrame
+            proposedRect = NSRect(
+                x: buttonRect.midX - (panelSize.width / 2),
+                y: buttonRect.minY - panelSize.height - gap,
+                width: panelSize.width,
+                height: panelSize.height
+            )
+        } else {
+            visibleFrame = fallbackVisibleFrame
+            proposedRect = NSRect(
+                x: fallbackVisibleFrame.maxX - panelSize.width - gap,
+                y: fallbackVisibleFrame.maxY - panelSize.height - gap,
+                width: panelSize.width,
+                height: panelSize.height
+            )
+        }
+
+        let targetRect = NSRect(
+            x: clampX(proposedRect.minX, panelWidth: panelSize.width, visibleFrame: visibleFrame),
+            y: clampY(proposedRect.minY, panelHeight: panelSize.height, visibleFrame: visibleFrame),
+            width: panelSize.width,
+            height: panelSize.height
+        )
+        let hiddenRect = targetRect.offsetBy(dx: 0, dy: hiddenLift)
+        return PanelPlacement(
+            isFinderAttached: false,
+            edge: .right,
+            targetRect: targetRect,
+            previewRect: targetRect,
+            hiddenRect: hiddenRect
+        )
+    }
+
+    /// The status item lives in the menu bar, which sits outside `visibleFrame`, so the button is
+    /// matched against each screen's full frame.
+    private static func screenHostingStatusItem(_ buttonRect: NSRect, in screens: [PanelScreenGeometry]) -> PanelScreenGeometry? {
+        let center = NSPoint(x: buttonRect.midX, y: buttonRect.midY)
+        return screens.first(where: { NSPointInRect(center, $0.frame) })
+    }
+
+    private static func clampX(_ proposedX: CGFloat, panelWidth: CGFloat, visibleFrame: NSRect) -> CGFloat {
+        min(max(proposedX, visibleFrame.minX), visibleFrame.maxX - panelWidth)
     }
 
     private static func clampY(_ proposedY: CGFloat, panelHeight: CGFloat, visibleFrame: NSRect) -> CGFloat {

@@ -86,37 +86,57 @@ enum GlassRimShape: Equatable, Sendable {
     }
 }
 
-/// Which glass a rim belongs to. The panel and the pill already draw a native
-/// glass rim, so the lighting only supplements them; file plates rely on it.
+/// Which glass a bevel belongs to. The panel and the pill already draw a
+/// native glass edge, so their bevel light only supplements it; file plates
+/// rely on it.
 enum GlassSurfaceKind: Sendable {
     case panel
     case pill
     case plate
 }
 
-/// One rim color stop. `location` follows a conic `CAGradientLayer` (see
-/// `GlassLightingEngine.location(of:in:)`). Components are gamma-encoded sRGB.
-struct GlassRimStop: Equatable, Sendable {
-    let location: CGFloat
-    let red: CGFloat
-    let green: CGFloat
-    let blue: CGFloat
-    let opacity: CGFloat
+/// One surface's bevel lighting, laid out for the shader: each field is one
+/// `float4` of `BevelUniforms` in `GlassBevelRenderer.shaderSource`, in order.
+/// Positions are in the surface's own points (top-left origin, y down).
+struct GlassBevelUniforms: Equatable, Sendable {
+    /// Width, height, corner radius (pt), backing scale (px per pt).
+    var surface: SIMD4<Float>
+    /// Bevel width (pt), height ratio, profile exponent, refractive index.
+    var profile: SIMD4<Float>
+    /// Unit direction toward the key light (x right, y down, z toward the
+    /// viewer), key highlight gain.
+    var keyLight: SIMD4<Float>
+    /// The key light's direction across the glass (x, y), back light gain,
+    /// edge gain.
+    var keyFacing: SIMD4<Float>
+    /// Pointer position, pointer light height, pointer highlight gain.
+    var pointer: SIMD4<Float>
+    /// Pointer reach, gain of pointer light leaving the slopes, key and
+    /// pointer shininess.
+    var pointerShape: SIMD4<Float>
+    /// Icon light gain, halo reach, facing wrap, escape exponent.
+    var emitterTuning: SIMD4<Float>
+    /// Icon light core radius, core gain, unused, unused.
+    var emitterCore: SIMD4<Float>
+    /// Max opacity, minimum edge width (pt), edge directionality, icon count.
+    var output: SIMD4<Float>
+}
 
-    func moved(to location: CGFloat) -> GlassRimStop {
-        GlassRimStop(location: location, red: red, green: green, blue: blue, opacity: opacity)
-    }
+/// An icon light as the shader sees it.
+struct GlassBevelEmitter: Equatable, Sendable {
+    /// Position, 1 when the icon sits on the surface (0 beside it), unused.
+    var position: SIMD4<Float>
+    /// Linear color × strength × visibility, unused.
+    var light: SIMD4<Float>
 
-    static func interpolate(_ from: GlassRimStop, _ to: GlassRimStop, _ progress: CGFloat) -> GlassRimStop {
-        func mix(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * progress }
-        return GlassRimStop(
-            location: mix(from.location, to.location),
-            red: mix(from.red, to.red),
-            green: mix(from.green, to.green),
-            blue: mix(from.blue, to.blue),
-            opacity: mix(from.opacity, to.opacity)
-        )
-    }
+    /// Fills the shader's emitter buffer when no icon reaches the surface.
+    static let none = GlassBevelEmitter(position: .zero, light: .zero)
+}
+
+/// Everything needed to draw one surface's bevel.
+struct GlassBevelLighting: Equatable, Sendable {
+    var uniforms: GlassBevelUniforms
+    var emitters: [GlassBevelEmitter]
 }
 
 /// Named coordinate space shared by every glass surface and light emitter. It
@@ -128,65 +148,73 @@ enum GlassLightingSpace {
 
 /// Every tunable of the lighting model, in one place.
 enum GlassLightingStyle {
-    static let rimWidth: CGFloat = 1
-
-    struct BandStep: Equatable {
-        let inset: CGFloat
-        let width: CGFloat
-        let opacity: Double
+    /// Each surface's slope: a tight, Apple-like edge (p = 4) whose curvature
+    /// gathers in the outer couple of points. The panel's slope stays inside
+    /// the file list inset, so it never runs under the plates.
+    static func bevel(for kind: GlassSurfaceKind) -> GlassBevel {
+        switch kind {
+        case .panel:
+            return GlassBevel(width: 10, heightRatio: 1, profileExponent: 4, refractiveIndex: 1.5)
+        case .pill:
+            return GlassBevel(width: 10, heightRatio: 1, profileExponent: 4, refractiveIndex: 1.5)
+        case .plate:
+            return GlassBevel(width: 6, heightRatio: 1, profileExponent: 4, refractiveIndex: 1.5)
+        }
     }
 
-    /// Light refracted just inside the rim, as strokes fading inward (about 5 pt deep).
-    static let refractionBandSteps: [BandStep] = [
-        BandStep(inset: 1, width: 1.5, opacity: 1),
-        BandStep(inset: 2.5, width: 1.5, opacity: 0.55),
-        BandStep(inset: 4, width: 1.5, opacity: 0.25),
-    ]
+    /// The Fresnel edge stays at least this wide: about a pixel on a 2x display.
+    static let minimumEdgeWidth: CGFloat = 0.5
+    /// Share of the edge light that follows the key light's side; the rest
+    /// goes all around.
+    static let edgeDirectionality: CGFloat = 0.5
+    /// Light leaving the glass gathers on the steep outer slope; lower spreads
+    /// it further in.
+    static let escapeExponent: CGFloat = 0.5
 
     /// Unit vector toward the default key light: top-left (y grows downward).
     static let defaultKeyLightDirection = CGVector(dx: -0.6, dy: -0.8)
+    /// Elevation of the default key light above the glass.
+    static let keyLightElevation: CGFloat = 40 * .pi / 180
+    /// Blinn-Phong exponent of the key highlight: higher is a thinner line.
+    static let keyShininess: CGFloat = 48
     /// Height of the pointer light above the glass: lower is more directional.
     static let pointerLightHeight: CGFloat = 24
     /// Distance at which the pointer light stops adding highlight.
     static let pointerLightReach: CGFloat = 220
-    /// Broader than the default light's falloff, so nearby edges catch it.
-    static let pointerSpecularExponent: CGFloat = 1.5
+    /// Broader than the key highlight, so every slope the pointer nears catches it.
+    static let pointerShininess: CGFloat = 24
     /// Share of the default top-left light kept while the pointer leads.
     static let ambientDirectionalShare: CGFloat = 0.3
     static let pointerEnterExitDuration: TimeInterval = 0.35
     /// Pointer moves are coalesced to at most one light update per frame at 60 Hz.
     static let pointerUpdateInterval: TimeInterval = 1.0 / 60
 
-    static let specularExponent: CGFloat = 2
-    /// Distance at which an icon's light no longer reaches a rim.
+    /// Distance at which an icon's halo no longer reaches a slope.
     static let emitterReach: CGFloat = 110
+    /// An icon's bright core, about its own size: the slope right next to an
+    /// icon shows its light, pulled outward by refraction.
+    static let emitterCoreRadius: CGFloat = 28
+    static let emitterCoreGain: CGFloat = 2
     /// Softens the facing cutoff so light wraps a little around corners.
     static let facingWrap: CGFloat = 0.25
     /// Icons fade out over this distance as they leave the panel.
     static let emitterEdgeFade: CGFloat = 16
-
-    static func sampleCount(for kind: GlassSurfaceKind) -> Int {
-        switch kind {
-        case .panel: return 56
-        case .pill: return 32
-        case .plate: return 40
-        }
-    }
+    /// At most this many icon lights reach one surface; the nearest win.
+    static let maxEmitters = 16
 
     struct Intensity: Equatable {
-        /// White specular from the default top-left light.
+        /// White highlight of the default top-left light on the slopes facing it.
         let key: CGFloat
-        /// White specular from the light above the pointer. Kept separate and
+        /// White highlight of the light above the pointer. Kept separate and
         /// stronger, so the moving highlight reads even on the panel and pill,
-        /// whose native glass rim already carries the static light.
+        /// whose native glass edge already carries the static light.
         let pointer: CGFloat
-        /// Faint refraction on the edges facing away from the key light.
+        /// Light that crossed the glass, leaving the slopes on the far side.
         let back: CGFloat
-        /// Constant white outline.
-        let ambient: CGFloat
+        /// Fresnel edge: the thin bright line where the slope turns vertical.
+        let edge: CGFloat
         /// Gain for colored icon light.
         let emitter: CGFloat
-        let refractionBand: Double
         let maxOpacity: CGFloat
     }
 
@@ -195,16 +223,16 @@ enum GlassLightingStyle {
         switch kind {
         case .plate:
             return isDark
-                ? Intensity(key: 0.32, pointer: 0.70, back: 0.08, ambient: 0.06, emitter: 0.60, refractionBand: 0.20, maxOpacity: 0.95)
-                : Intensity(key: 0.85, pointer: 0.90, back: 0.25, ambient: 0.30, emitter: 0.55, refractionBand: 0.14, maxOpacity: 0.95)
+                ? Intensity(key: 0.40, pointer: 0.75, back: 0.12, edge: 0.35, emitter: 0.60, maxOpacity: 0.95)
+                : Intensity(key: 0.90, pointer: 0.95, back: 0.30, edge: 0.60, emitter: 0.55, maxOpacity: 0.95)
         case .pill:
             return isDark
-                ? Intensity(key: 0.19, pointer: 0.60, back: 0.05, ambient: 0.03, emitter: 0.45, refractionBand: 0.14, maxOpacity: 0.85)
-                : Intensity(key: 0.51, pointer: 0.80, back: 0.15, ambient: 0.15, emitter: 0.40, refractionBand: 0.10, maxOpacity: 0.85)
+                ? Intensity(key: 0.24, pointer: 0.60, back: 0.07, edge: 0.20, emitter: 0.45, maxOpacity: 0.85)
+                : Intensity(key: 0.55, pointer: 0.80, back: 0.18, edge: 0.35, emitter: 0.40, maxOpacity: 0.85)
         case .panel:
             return isDark
-                ? Intensity(key: 0.16, pointer: 0.55, back: 0.04, ambient: 0.02, emitter: 0.35, refractionBand: 0.10, maxOpacity: 0.80)
-                : Intensity(key: 0.43, pointer: 0.75, back: 0.12, ambient: 0.10, emitter: 0.30, refractionBand: 0.08, maxOpacity: 0.80)
+                ? Intensity(key: 0.20, pointer: 0.55, back: 0.05, edge: 0.16, emitter: 0.35, maxOpacity: 0.80)
+                : Intensity(key: 0.45, pointer: 0.75, back: 0.14, edge: 0.30, emitter: 0.30, maxOpacity: 0.80)
         }
     }
 }

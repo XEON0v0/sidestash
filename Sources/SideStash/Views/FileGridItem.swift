@@ -6,6 +6,16 @@ enum FileRowPlateStyle {
     static let hoverAnimationDuration: TimeInterval = 0.15
     static let pressAnimationDuration: TimeInterval = 0.08
 
+    /// The wash frosts only the plate's flat top: it is inset halfway into
+    /// the slope and softened across it, so the slope stays clear glass.
+    static var washInset: CGFloat {
+        CGFloat(GlassLightingStyle.bevel(for: .plate).width) / 2
+    }
+
+    static var washSoftness: CGFloat {
+        washInset
+    }
+
     /// Dragging out wins over pressing, pressing over hovering. The lift
     /// matches the AppKit row's own lift so plate and content move together.
     static func scale(for interaction: FileRowInteraction) -> CGFloat {
@@ -57,7 +67,10 @@ struct FileGridItem: View {
         Color.clear
             .glassEffect(plateGlass, in: plateShape)
             .overlay {
-                plateShape.fill(Color(nsColor: plateWash.dynamic))
+                plateShape
+                    .inset(by: FileRowPlateStyle.washInset)
+                    .fill(Color(nsColor: plateWash.dynamic))
+                    .blur(radius: FileRowPlateStyle.washSoftness)
             }
             .overlay {
                 GlassRim(shape: .roundedRect(cornerRadius: SideStashSidebarStyle.rowCornerRadius), kind: .plate)

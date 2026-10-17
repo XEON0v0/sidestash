@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// The lit edge of a glass surface, as a SwiftUI view. The drawing lives in
+/// The lit bevel of a glass surface, as a SwiftUI view. The drawing lives in
 /// `GlassRimView`, which the shared `GlassLightingScene` updates directly.
 struct GlassRim: NSViewRepresentable {
     let shape: GlassRimShape
@@ -26,10 +26,10 @@ struct GlassRim: NSViewRepresentable {
     }
 }
 
-/// Draws a rim as a conic gradient masked to the outline, plus fainter inner
-/// strokes for light refracted just inside it. Colors come from
-/// `GlassLightingEngine` at this view's place in the scene and are only
-/// touched when they change, so the GPU composites everything else.
+/// Shows a surface's bevel: the slope band between its outline and its
+/// plateau, lit by `GlassLightingEngine` at this view's place in the scene and
+/// drawn on the GPU by `GlassBevelRenderer`. It only draws when its lighting
+/// changes; the layer's contents swap in once the GPU is done.
 final class GlassRimView: NSView {
     var shape: GlassRimShape {
         didSet {
@@ -53,60 +53,43 @@ final class GlassRimView: NSView {
         }
     }
 
-    /// The stops currently on screen.
-    private(set) var currentStops: [GlassRimStop] = []
+    /// The lighting most recently computed from the scene.
+    private(set) var lighting: GlassBevelLighting?
+    /// The lighting most recently drawn, or being drawn.
+    private(set) var renderedLighting: GlassBevelLighting?
+    /// Finished draws.
+    private(set) var renderCount = 0
 
-    /// Everything the rim's colors depend on; unchanged inputs skip the work.
-    private struct LightingInputs: Equatable {
-        let shape: GlassRimShape
-        let kind: GlassSurfaceKind
-        let frame: CGRect
-        let keyLight: GlassKeyLight
-        let emitters: [GlassLightEmitter]
-        let sceneBounds: CGRect
-        let isDark: Bool
-        let reduceTransparency: Bool
-    }
+    private let renderer: GlassBevelRenderer
+    /// At most three: one on screen, one just replaced (the compositor may
+    /// still read it) and one to draw into.
+    private var targets: [GlassBevelTarget] = []
+    private var displayedTarget: GlassBevelTarget?
+    private var replacedTarget: GlassBevelTarget?
+    private var isRendering = false
+    private var isWaitingForRenderer = false
 
-    private var currentInputs: LightingInputs?
+    private static let maxTargets = 3
 
-    private let gradientLayer = CAGradientLayer()
-    private let maskLayer = CALayer()
-    private let rimLayer = CAShapeLayer()
-    private let bandLayers: [CAShapeLayer]
-    private var currentBandOpacity: Double = -1
-
-    /// Rim changes land at once. Disabling the implicit animations per layer,
-    /// rather than wrapping each change in its own `CATransaction`, lets a
-    /// relight of every rim go out in the run loop's single commit: an explicit
-    /// transaction outside one commits the whole layer tree on the spot.
+    /// Contents and geometry land at once, in the run loop's single commit.
     private static let noAnimations: [String: any CAAction] = [
-        "colors": NSNull(), "locations": NSNull(), "opacity": NSNull(),
-        "path": NSNull(), "lineWidth": NSNull(),
+        "contents": NSNull(), "contentsScale": NSNull(), "cornerRadius": NSNull(),
         "bounds": NSNull(), "position": NSNull(), "frame": NSNull(),
     ]
 
-    init(shape: GlassRimShape, kind: GlassSurfaceKind) {
+    /// `renderer` defaults to the shared one.
+    init(shape: GlassRimShape, kind: GlassSurfaceKind, renderer: GlassBevelRenderer? = nil) {
         self.shape = shape
         self.kind = kind
-        bandLayers = GlassLightingStyle.refractionBandSteps.map { _ in CAShapeLayer() }
+        self.renderer = renderer ?? .shared
         super.init(frame: .zero)
 
         wantsLayer = true
-        gradientLayer.type = .conic
-        gradientLayer.startPoint = CGPoint(x: 0.5, y: 0.5)
-        gradientLayer.endPoint = CGPoint(x: 1, y: 0.5)
-        gradientLayer.mask = maskLayer
-        gradientLayer.actions = Self.noAnimations
-        maskLayer.actions = Self.noAnimations
-        layer?.addSublayer(gradientLayer)
-
-        for strokeLayer in bandLayers + [rimLayer] {
-            strokeLayer.fillColor = nil
-            strokeLayer.strokeColor = NSColor.black.cgColor
-            strokeLayer.actions = Self.noAnimations
-            maskLayer.addSublayer(strokeLayer)
-        }
+        // Clip to the native glass outline, whose corners are continuous.
+        layer?.cornerCurve = .continuous
+        layer?.masksToBounds = true
+        layer?.contentsGravity = .resize
+        layer?.actions = Self.noAnimations
         setAccessibilityElement(false)
     }
 
@@ -121,7 +104,7 @@ final class GlassRimView: NSView {
 
     override func layout() {
         super.layout()
-        updateGeometry()
+        layer?.cornerRadius = shape.cornerRadius(in: bounds.size)
         relight()
     }
 
@@ -130,72 +113,91 @@ final class GlassRimView: NSView {
         relight()
     }
 
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        relight()
+    }
+
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         relight()
     }
 
-    /// Recomputes this rim's colors from the scene and applies them if they changed.
+    /// Recomputes this bevel's lighting from the scene and draws it if it changed.
     func relight() {
-        guard let scene, bounds.width > 1, bounds.height > 1, let frame = scene.sceneRect(of: self) else { return }
-
-        // Reduce Transparency keeps a plain white rim.
-        let inputs = LightingInputs(
+        guard let scene, let window, bounds.width > 1, bounds.height > 1,
+              let frame = scene.sceneRect(of: self) else { return }
+        let isDark = effectiveAppearance.isDarkGlassAppearance
+        lighting = GlassLightingEngine.lighting(
             shape: shape,
-            kind: kind,
             frame: frame,
-            keyLight: GlassLightingEngine.effectiveKeyLight(scene.keyLight, for: frame),
-            emitters: scene.reduceTransparency ? [] : GlassLightingEngine.emitters(scene.orderedEmitters, reaching: frame),
+            kind: kind,
+            keyLight: scene.keyLight,
+            emitters: scene.orderedEmitters,
             sceneBounds: scene.bounds,
-            isDark: effectiveAppearance.isDarkGlassAppearance,
-            reduceTransparency: scene.reduceTransparency
+            intensity: GlassLightingStyle.intensity(for: kind, colorScheme: isDark ? .dark : .light),
+            reduceTransparency: scene.reduceTransparency,
+            scale: window.backingScaleFactor
         )
-        guard inputs != currentInputs else { return }
-        currentInputs = inputs
+        renderIfNeeded()
+    }
 
-        let intensity = GlassLightingStyle.intensity(for: kind, colorScheme: inputs.isDark ? .dark : .light)
-        let stops = GlassLightingEngine.rimStops(
-            shape: inputs.shape,
-            frame: inputs.frame,
-            kind: inputs.kind,
-            keyLight: inputs.keyLight,
-            emitters: inputs.emitters,
-            sceneBounds: inputs.sceneBounds,
-            intensity: intensity
-        )
-        let bandOpacity = inputs.reduceTransparency ? 0 : intensity.refractionBand
-        guard stops != currentStops || bandOpacity != currentBandOpacity else { return }
-        currentStops = stops
-        currentBandOpacity = bandOpacity
-
-        gradientLayer.colors = stops.map { stop in
-            CGColor(srgbRed: stop.red, green: stop.green, blue: stop.blue, alpha: stop.opacity)
+    private func renderIfNeeded() {
+        // One draw at a time; a newer lighting is drawn when it finishes.
+        guard let lighting, lighting != renderedLighting, !isRendering else { return }
+        guard renderer.isReady else {
+            waitForRenderer()
+            return
         }
-        gradientLayer.locations = stops.map { NSNumber(value: Double($0.location)) }
-        for (bandLayer, step) in zip(bandLayers, GlassLightingStyle.refractionBandSteps) {
-            bandLayer.opacity = Float(bandOpacity * step.opacity)
+        let scale = CGFloat(lighting.uniforms.surface.w)
+        let width = Int((CGFloat(lighting.uniforms.surface.x) * scale).rounded())
+        let height = Int((CGFloat(lighting.uniforms.surface.y) * scale).rounded())
+        guard let target = nextTarget(width: width, height: height) else { return }
+
+        isRendering = true
+        renderedLighting = lighting
+        let started = renderer.render(lighting, into: target) { [weak self] in
+            guard let self else { return }
+            self.isRendering = false
+            self.renderCount += 1
+            self.replacedTarget = self.displayedTarget
+            self.displayedTarget = target
+            self.layer?.contentsScale = scale
+            self.layer?.contents = target.surface
+            self.renderIfNeeded()
+        }
+        if !started {
+            isRendering = false
+            renderedLighting = nil
         }
     }
 
-    private func updateGeometry() {
-        gradientLayer.frame = bounds
-        maskLayer.frame = bounds
-
-        let rimWidth = GlassLightingStyle.rimWidth
-        rimLayer.lineWidth = rimWidth
-        rimLayer.path = outlinePath(insetBy: rimWidth / 2)
-        for (bandLayer, step) in zip(bandLayers, GlassLightingStyle.refractionBandSteps) {
-            bandLayer.lineWidth = step.width
-            bandLayer.path = outlinePath(insetBy: step.inset + step.width / 2)
+    /// A target of the current pixel size that is neither on screen nor just
+    /// replaced. A new size starts a new set; the layer keeps showing the old
+    /// contents until the first draw at the new size lands.
+    private func nextTarget(width: Int, height: Int) -> GlassBevelTarget? {
+        if let first = targets.first, first.width != width || first.height != height {
+            targets.removeAll()
+            replacedTarget = nil
         }
+        if let free = targets.first(where: { $0 !== displayedTarget && $0 !== replacedTarget }) {
+            return free
+        }
+        guard targets.count < Self.maxTargets, let target = renderer.makeTarget(width: width, height: height) else {
+            return nil
+        }
+        targets.append(target)
+        return target
     }
 
-    /// The outline inset by `inset`, with concentric continuous corners, so a
-    /// stroke of width `2 × inset` sits just inside the edge.
-    private func outlinePath(insetBy inset: CGFloat) -> CGPath {
-        let rect = bounds.insetBy(dx: inset, dy: inset)
-        guard rect.width > 0, rect.height > 0 else { return CGPath(rect: .zero, transform: nil) }
-        let radius = min(max(shape.cornerRadius(in: bounds.size) - inset, 0), min(rect.width, rect.height) / 2)
-        return RoundedRectangle(cornerRadius: radius, style: .continuous).path(in: rect).cgPath
+    private func waitForRenderer() {
+        renderer.prepare()
+        guard !isWaitingForRenderer else { return }
+        isWaitingForRenderer = true
+        renderer.whenReady { [weak self] in
+            guard let self else { return }
+            self.isWaitingForRenderer = false
+            self.renderIfNeeded()
+        }
     }
 }

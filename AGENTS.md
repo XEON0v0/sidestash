@@ -34,10 +34,12 @@ A menu-bar-only app that acts as a temporary file drop zone. Files dragged in fr
 | `Views/SideStashGlassPalette.swift` | Light/dark color tokens; AppKit layers resolve them against `effectiveAppearance` |
 | `Views/StashContentView.swift` | Main panel UI — header with custom drag handle, file grid, empty state |
 | `Views/BottomActionToolbar.swift` | Bulk-action capsule — native `glassEffect`, hover lens, delayed tooltips with disabled reasons |
-| `Views/FileGridItem.swift` | One file on its own glass plate — `DraggableFileItem` on top, plate with a lit rim behind; registers its icon as a light |
-| `Lighting/GlassLightingScene.swift` | Shared light environment: icon light positions, pointer-following key light, panel bounds; pushes changes straight to the rims (no SwiftUI updates) |
-| `Lighting/GlassLightingEngine.swift` | Pure lighting math: perimeter sampling, key/back/ambient + icon light per rim sample, conic gradient stops |
-| `Lighting/GlassRim.swift` | The lit edge on the panel, the action pill and every file plate — a CoreAnimation conic gradient updated in place |
+| `Views/FileGridItem.swift` | One file on its own glass plate — `DraggableFileItem` on top, plate with a lit bevel behind (light-mode wash only on the plateau); registers its icon as a light |
+| `Lighting/GlassLightingScene.swift` | Shared light environment: icon light positions, pointer-following key light, panel bounds; pushes changes straight to the bevels (no SwiftUI updates) |
+| `Lighting/GlassBevel.swift` | Slab geometry: convex slope profile (plateau + curved edge), normals, Fresnel, refraction offset, rounded-rect outline distance |
+| `Lighting/GlassLightingEngine.swift` | Bevel lighting: packs one surface's lights into shader uniforms, plus the Swift reference of the shader (`bevelLight`/`bevelColor`) |
+| `Lighting/GlassBevelRenderer.swift` | MSL shader compiled at run time; draws bevels into IOSurface-backed textures, batched per run loop pass |
+| `Lighting/GlassRim.swift` | The lit bevel on the panel, the action pill and every file plate — shows the rendered IOSurface as layer contents, redrawn only when its lighting changes |
 | `Lighting/IconLightSampler.swift` | Turns a file icon into a light (dominant hue, strength by colorfulness, reds kept paler) |
 | `Views/DropZoneView.swift` | Root `NSView` of panel — registers `.fileURL` drag types, hands to `StashStore` |
 | `DragOut/DraggableFileItem.swift` | `NSViewRepresentable` — renders file icon + name, supports drag-out via `NSDraggingSession` |
@@ -74,7 +76,8 @@ A menu-bar-only app that acts as a temporary file drop zone. Files dragged in fr
 - **Git repo exists** — check `git status` before editing because generated and agent-workflow artifacts may be present locally.
 - **`NSPanel` config** — `.borderless | .nonactivatingPanel`, `.floating` level, `canJoinAllSpaces`, does not hide on deactivate. Changing these breaks the floating-drop-zone UX.
 - **Liquid Glass** — the panel body is exactly one `NSGlassEffectView`; content goes through its `contentView`. Don't add materials, fills, strokes or shadows on top — they read as a cloudy second layer.
-- **Glass edge lighting** — every glass edge (panel, action pill, file plates) is lit only through `GlassRim` + `GlassLightingScene`; don't hand-draw rim gradients. Tune it in `GlassLightingStyle` / `IconLightStyle`. Rims must sit in the `GlassLightingSpace` coordinate space, and the pointer reaches the scene through `DropZoneNSView.onPointerMoved`.
+- **Glass edge lighting** — every glass surface (panel, action pill, file plates) is a curved-edge slab: the plateau stays native glass, and only the slope band (`GlassLightingStyle.bevel(for:)`) is lit, through `GlassRim` + `GlassLightingScene`; don't hand-draw edge gradients. Tune it in `GlassLightingStyle` / `IconLightStyle`. Rims must sit in the `GlassLightingSpace` coordinate space, and the pointer reaches the scene through `DropZoneNSView.onPointerMoved`.
+- **Bevel shader** — the MSL in `GlassBevelRenderer.shaderSource` mirrors `GlassLightingEngine.bevelLight(at:lighting:)` line by line; change both together and run `GlassBevelRendererTests` (GPU vs Swift reference). It is compiled at run time on purpose: no `.metal` files, so plain `swift build` needs no Metal toolchain. Bevels draw into IOSurfaces rather than a `CAMetalLayer`, whose `nextDrawable()` can block the main thread while the panel is hidden.
 - **File row plates** — the AppKit row content stays above the plate; keep rows out of `GlassEffectContainer`, which re-layers glass (the pill's rim is attached outside its container for the same reason).
 - **Light/dark** — never hard-code white/black `CGColor`s. Use `SideStashGlassPalette` tokens and re-apply layer colors in `viewDidChangeEffectiveAppearance()`, otherwise they go stale when the system appearance switches.
 - **`StashStore` is `@MainActor`** — all mutations must be on main actor. Both SwiftUI views (via `@EnvironmentObject`) and AppKit callers (from drag delegates) already run on main.

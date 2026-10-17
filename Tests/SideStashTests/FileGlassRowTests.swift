@@ -99,6 +99,14 @@ struct FileGlassRowTests {
         ))
     }
 
+    @Test func plateWash_frostsOnlyThePlateau() {
+        let slope = CGFloat(GlassLightingStyle.bevel(for: .plate).width)
+
+        // Inset halfway into the slope and softened across the rest of it.
+        #expect(FileRowPlateStyle.washInset == slope / 2)
+        #expect(FileRowPlateStyle.washInset + FileRowPlateStyle.washSoftness <= slope)
+    }
+
     private func icon(_ draw: @escaping (NSRect) -> Void) -> NSImage {
         NSImage(size: NSSize(width: 48, height: 48), flipped: false) { rect in
             draw(rect)

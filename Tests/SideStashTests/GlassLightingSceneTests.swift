@@ -85,29 +85,34 @@ struct GlassLightingSceneTests {
         _ = window
     }
 
-    @Test func rimView_isLitFromTheSceneAndFollowsItsLights() {
+    @Test func rimView_isLitFromTheSceneAndFollowsItsLights() throws {
         let (window, root) = makeWindow(rootFlipped: true)
         let scene = GlassLightingScene()
         scene.coordinateRoot = root
         scene.bounds = root.bounds
-        let rim = GlassRimView(shape: .roundedRect(cornerRadius: 12), kind: .plate)
+        // No GPU: this checks the lighting, not the drawing.
+        let rim = GlassRimView(shape: .roundedRect(cornerRadius: 12), kind: .plate, renderer: GlassBevelRenderer(device: nil))
         rim.frame = NSRect(x: 12, y: 70, width: 296, height: 44)
         root.addSubview(rim)
 
         rim.scene = scene
-        let unlit = rim.currentStops
-        #expect(unlit.count == GlassLightingStyle.sampleCount(for: .plate) + 2)
+        let unlit = try #require(rim.lighting)
+        #expect(unlit.emitters.isEmpty)
+        #expect(unlit.uniforms.surface.x == 296)
+        #expect(unlit.uniforms.surface.y == 44)
+        #expect(unlit.uniforms.surface.z == 12)
 
-        // The file's own icon, inside the plate near its leading edge.
+        // The file's own icon, on the plate 24 pt from its leading edge.
         scene.setEmitter(id: "file", position: CGPoint(x: 36, y: 92), light: blue)
         rim.relight()
-        let lit = rim.currentStops
-        #expect(lit != unlit)
+        let lit = try #require(rim.lighting)
+        #expect(lit.emitters.map(\.position) == [SIMD4(24, 22, 1, 0)])
 
-        // Location 0.5 is the leading edge in Core Animation's conic sweep.
-        let leading = lit.min { abs($0.location - 0.5) < abs($1.location - 0.5) }
-        let trailing = lit.min { abs($0.location - 0) < abs($1.location - 0) }
-        #expect((leading?.blue ?? 0) - (leading?.red ?? 0) > (trailing?.blue ?? 0) - (trailing?.red ?? 0))
+        let leading = GlassLightingEngine.bevelLight(at: SIMD2(1, 22), lighting: lit).light
+        let trailing = GlassLightingEngine.bevelLight(at: SIMD2(295, 22), lighting: lit).light
+        #expect(leading.z - leading.x > trailing.z - trailing.x)
+        // Without the shader nothing is drawn.
+        #expect(rim.renderCount == 0)
 
         rim.scene = nil
         _ = window

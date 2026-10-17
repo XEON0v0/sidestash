@@ -1,97 +1,228 @@
 import CoreGraphics
 import Foundation
+import simd
 
-/// Pure lighting math shared by every glass rim.
+/// Lighting for every glass surface, modeled as a curved-edge slab: a flat
+/// plateau over a convex slope (`GlassBevel`). The plateau is the native glass
+/// and stays untouched; only the slope is lit:
 ///
-/// A rim is sampled around its perimeter; each sample, with its outward
-/// normal, gathers white light from the key light (specular on edges facing
-/// it, faint refraction on edges facing away, a constant outline) and colored
-/// light from nearby icons (windowed inverse-square falloff, brighter on edges
-/// that face the icon). Samples become stops of a conic `CAGradientLayer`.
+/// - a thin Fresnel edge where the slope turns vertical,
+/// - white highlights of the default top-left light and of the light above
+///   the pointer, sitting where the slope's tilt reflects them to the viewer:
+///   as the pointer comes closer, its highlight rolls toward the plateau,
+/// - light that crossed the glass leaving the slopes on the far side,
+/// - icon light seen through the slope: the bent view ray lands further in,
+///   so an icon's light is pulled out onto the slope next to it.
+///
+/// `lighting(...)` packs one surface's lights for `GlassBevelRenderer`;
+/// `bevelLight(at:lighting:)` is the Swift reference of its shader, which
+/// mirrors it line by line (see `GlassBevelRendererTests`).
 enum GlassLightingEngine {
-    struct RimSample: Equatable, Sendable {
-        let position: CGPoint
-        let normal: CGVector
-    }
+    // MARK: - Lighting
 
-    // MARK: - Rim
-
-    static func rimStops(
+    /// One surface's bevel lighting, from the scene. Lights out of the
+    /// surface's reach are left out, so they never cause a redraw.
+    static func lighting(
         shape: GlassRimShape,
         frame: CGRect,
         kind: GlassSurfaceKind,
         keyLight: GlassKeyLight,
         emitters: [GlassLightEmitter],
         sceneBounds: CGRect,
-        intensity: GlassLightingStyle.Intensity
-    ) -> [GlassRimStop] {
-        guard frame.width > 1, frame.height > 1 else {
-            let outline = stop(for: LightRGB.white * intensity.ambient, at: 0, maxOpacity: intensity.maxOpacity)
-            return [outline, outline.moved(to: 1)]
-        }
+        intensity: GlassLightingStyle.Intensity,
+        reduceTransparency: Bool,
+        scale: CGFloat
+    ) -> GlassBevelLighting {
+        let style = GlassLightingStyle.self
+        let size = SIMD2(Float(frame.width), Float(frame.height))
+        var bevel = style.bevel(for: kind)
+        bevel.width = max(min(bevel.width, min(size.x, size.y) / 2), 0.001)
+        // Reduce Transparency keeps only a plain white edge.
+        let lit: Float = reduceTransparency ? 0 : 1
 
-        var stops = perimeterSamples(of: shape, in: frame, count: GlassLightingStyle.sampleCount(for: kind))
-            .map { sample -> GlassRimStop in
-                let light = light(
-                    at: sample,
-                    shape: shape,
-                    frame: frame,
-                    keyLight: keyLight,
-                    emitters: emitters,
-                    sceneBounds: sceneBounds,
-                    intensity: intensity
-                )
-                return stop(for: light, at: location(of: sample.position, in: frame), maxOpacity: intensity.maxOpacity)
-            }
-        stops.sort { $0.location < $1.location }
+        // While the pointer leads, only a share of the default light remains.
+        let weight = Float(min(max(keyLight.pointerWeight, 0), 1))
+        let share = Float(style.ambientDirectionalShare)
+        let directional = ((1 - weight) + weight * share) * lit
 
-        // Close the loop: both ends carry the color at the seam.
-        guard let first = stops.first, let last = stops.last else { return stops }
-        let gap = (1 - last.location) + first.location
-        let progress = gap > 0 ? (1 - last.location) / gap : 0
-        let seam = GlassRimStop.interpolate(last, first, progress)
-        return [seam.moved(to: 0)] + stops + [seam.moved(to: 1)]
+        let facing = SIMD2(Float(style.defaultKeyLightDirection.dx), Float(style.defaultKeyLightDirection.dy))
+        let elevation = Float(style.keyLightElevation)
+        let key = SIMD3(facing * cos(elevation), sin(elevation))
+
+        // A pointer out of reach adds nothing, wherever it is.
+        let pointerReaches = !reduceTransparency
+            && weight > 0
+            && distance(from: keyLight.position, to: frame) < style.pointerLightReach
+        let pointer = pointerReaches
+            ? SIMD2(Float(keyLight.position.x - frame.minX), Float(keyLight.position.y - frame.minY))
+            : .zero
+        // Light under a pointer over this surface leaves through its slopes;
+        // from beside it, only what crosses the glass reaches the far ones.
+        let pointerInside = pointerReaches && contains(keyLight.position, shape: shape, frame: frame)
+        let pointerHighlight = pointerReaches ? Float(intensity.pointer) * weight : 0
+        let pointerLeaving = pointerReaches ? Float(pointerInside ? intensity.pointer : intensity.back) * weight : 0
+
+        let icons = reduceTransparency
+            ? []
+            : bevelEmitters(emitters, shape: shape, frame: frame, sceneBounds: sceneBounds)
+
+        let uniforms = GlassBevelUniforms(
+            surface: SIMD4(size.x, size.y, Float(shape.cornerRadius(in: frame.size)), Float(scale)),
+            profile: SIMD4(bevel.width, bevel.heightRatio, bevel.profileExponent, bevel.refractiveIndex),
+            keyLight: SIMD4(key, Float(intensity.key) * directional),
+            keyFacing: SIMD4(facing.x, facing.y, Float(intensity.back) * directional, Float(intensity.edge)),
+            pointer: SIMD4(pointer.x, pointer.y, Float(style.pointerLightHeight), pointerHighlight),
+            pointerShape: SIMD4(
+                Float(style.pointerLightReach),
+                pointerLeaving,
+                Float(style.keyShininess),
+                Float(style.pointerShininess)
+            ),
+            emitterTuning: SIMD4(
+                Float(intensity.emitter),
+                Float(style.emitterReach),
+                Float(style.facingWrap),
+                Float(style.escapeExponent)
+            ),
+            emitterCore: SIMD4(Float(style.emitterCoreRadius), Float(style.emitterCoreGain), 0, 0),
+            output: SIMD4(
+                Float(intensity.maxOpacity),
+                Float(style.minimumEdgeWidth),
+                Float(style.edgeDirectionality),
+                Float(icons.count)
+            )
+        )
+        return GlassBevelLighting(uniforms: uniforms, emitters: icons)
     }
 
-    /// Where a scene point (y down) falls in a conic `CAGradientLayer` covering
-    /// `frame`: Core Animation sweeps counter-clockwise from the trailing side
-    /// in y-up space, measuring angles in the layer's unit square — so they are
-    /// normalized by the frame's width and height, not geometric.
-    static func location(of point: CGPoint, in frame: CGRect) -> CGFloat {
-        guard frame.width > 0, frame.height > 0 else { return 0 }
-        let unitX = (point.x - frame.midX) / frame.width
-        let unitUp = (frame.midY - point.y) / frame.height
-        let angle = atan2(unitUp, unitX)
-        return (angle < 0 ? angle + 2 * .pi : angle) / (2 * .pi)
+    /// The icons that light some part of `frame`, in its own coordinates,
+    /// faded as they leave the panel. When more reach it than the shader
+    /// takes, the nearest win.
+    static func bevelEmitters(
+        _ emitters: [GlassLightEmitter],
+        shape: GlassRimShape,
+        frame: CGRect,
+        sceneBounds: CGRect
+    ) -> [GlassBevelEmitter] {
+        var visible = self.emitters(emitters, reaching: frame).compactMap { emitter -> (GlassLightEmitter, CGFloat)? in
+            let visibility = visibility(of: emitter.position, in: sceneBounds)
+            return visibility > 0 ? (emitter, visibility) : nil
+        }
+        if visible.count > GlassLightingStyle.maxEmitters {
+            visible = visible.enumerated()
+                .sorted { lhs, rhs in
+                    let left = distance(from: lhs.element.0.position, to: frame)
+                    let right = distance(from: rhs.element.0.position, to: frame)
+                    return left == right ? lhs.offset < rhs.offset : left < right
+                }
+                .prefix(GlassLightingStyle.maxEmitters)
+                .map(\.element)
+        }
+        return visible.map { emitter, visibility in
+            let light = emitter.light.color * (emitter.light.strength * visibility)
+            return GlassBevelEmitter(
+                position: SIMD4(
+                    Float(emitter.position.x - frame.minX),
+                    Float(emitter.position.y - frame.minY),
+                    contains(emitter.position, shape: shape, frame: frame) ? 1 : 0,
+                    0
+                ),
+                light: SIMD4(Float(light.red), Float(light.green), Float(light.blue), 0)
+            )
+        }
     }
 
-    static func stop(for light: LightRGB, at location: CGFloat, maxOpacity: CGFloat) -> GlassRimStop {
-        let peak = light.maxComponent
-        guard peak > 0.0001 else {
-            return GlassRimStop(location: location, red: 1, green: 1, blue: 1, opacity: 0)
+    // MARK: - Reference shading
+
+    struct BevelSample: Equatable {
+        /// Linear light, already faded into the plateau.
+        var light: SIMD3<Float>
+        /// How much of the pixel lies inside the outline.
+        var coverage: Float
+
+        static let dark = BevelSample(light: .zero, coverage: 0)
+    }
+
+    /// The light on the slope at `point` (the surface's own points). The
+    /// shader in `GlassBevelRenderer` computes exactly this, line by line.
+    static func bevelLight(at point: SIMD2<Float>, lighting: GlassBevelLighting) -> BevelSample {
+        let u = lighting.uniforms
+        let scale = u.surface.w
+        let outline = GlassOutlinePoint(point, size: SIMD2(u.surface.x, u.surface.y), cornerRadius: u.surface.z)
+        let n = outline.normal
+        let bevel = GlassBevel(width: u.profile.x, heightRatio: u.profile.y, profileExponent: u.profile.z, refractiveIndex: u.profile.w)
+
+        let coverage = unitClamp(outline.inset * scale + 0.5)
+        let across = outline.inset / bevel.width
+        guard coverage > 0, across < 1 else { return .dark }
+        let s = unitClamp(across)
+        let normal = bevel.normal(at: s, outward: n)
+        let view = SIMD3<Float>(0, 0, 1)
+        let fade = 1 - smoothstep(0.8, 1, s)
+
+        // Fresnel edge, at least the minimum edge width wide.
+        let edgeAcross = max(outline.inset - u.output.y, 0) / bevel.width
+        let fresnelEdge = bevel.fresnel(cosine: bevel.normal(at: edgeAcross, outward: n).z)
+        let facingKey = simd_dot(n, SIMD2(u.keyFacing.x, u.keyFacing.y))
+        let directionality = u.output.z
+        let edge = u.keyFacing.w * fresnelEdge * ((1 - directionality) + directionality * (0.5 + 0.5 * facingKey))
+
+        let keyDirection = SIMD3(u.keyLight.x, u.keyLight.y, u.keyLight.z)
+        let key = u.keyLight.w * pow(max(simd_dot(normal, simd_normalize(keyDirection + view)), 0), u.pointerShape.z)
+
+        // Light leaving the glass gathers where the slope is steep.
+        let tiltSine = simd_length(SIMD2(normal.x, normal.y))
+        let escape = pow(tiltSine, u.emitterTuning.w) * (1 - bevel.fresnel(cosine: normal.z))
+        let back = u.keyFacing.z * pow(max(-facingKey, 0), 2) * escape
+
+        let toPointer = SIMD2(u.pointer.x, u.pointer.y) - point
+        let pointerDistance = simd_length(toPointer)
+        let reach = windowedFalloff(distance: pointerDistance, range: u.pointerShape.x)
+        let pointerDirection = simd_normalize(SIMD3(toPointer, u.pointer.z))
+        let pointerHighlight = u.pointer.w
+            * pow(max(simd_dot(normal, simd_normalize(pointerDirection + view)), 0), u.pointerShape.w)
+            * reach
+        let away = pointerDistance > 0.001 ? -simd_dot(n, toPointer) / pointerDistance : 0
+        let pointerLeaving = u.pointerShape.y * pow(max(away, 0), 1.5) * reach * escape
+
+        var light = SIMD3<Float>(repeating: edge + key + back + pointerHighlight + pointerLeaving)
+
+        // Icon light seen through the slope: the bent view ray lands further in.
+        let sampled = point - n * bevel.refractionOffset(at: s)
+        for emitter in lighting.emitters.prefix(Int(u.output.w)) {
+            let offset = SIMD2(emitter.position.x, emitter.position.y) - sampled
+            let distance = simd_length(offset)
+            let glow = windowedFalloff(distance: distance, range: u.emitterTuning.y)
+                + u.emitterCore.y * windowedFalloff(distance: distance, range: u.emitterCore.x)
+            guard glow > 0 else { continue }
+            // An icon on the surface lights it from within; one beside it
+            // lights the slopes facing it.
+            let toward: Float = emitter.position.z > 0.5 ? -1 : 1
+            let cosine = distance > 0.001 ? toward * simd_dot(n, offset) / distance : 1
+            let wrap = u.emitterTuning.z
+            let facing = max((cosine + wrap) / (1 + wrap), 0)
+            light += SIMD3(emitter.light.x, emitter.light.y, emitter.light.z) * (u.emitterTuning.x * glow * facing * escape)
         }
-        let normalized = light * (1 / peak)
-        return GlassRimStop(
-            location: location,
-            red: LightRGB.encoded(normalized.red),
-            green: LightRGB.encoded(normalized.green),
-            blue: LightRGB.encoded(normalized.blue),
-            opacity: min(maxOpacity, peak)
+        return BevelSample(light: light * fade, coverage: coverage)
+    }
+
+    /// The pixel the shader writes at `point`: color normalized by its peak
+    /// and gamma encoded, opacity from the peak, premultiplied.
+    static func bevelColor(at point: SIMD2<Float>, lighting: GlassBevelLighting) -> SIMD4<Float> {
+        let sample = bevelLight(at: point, lighting: lighting)
+        let peak = max(sample.light.x, sample.light.y, sample.light.z)
+        guard peak > 0.0001 else { return .zero }
+        let alpha = min(lighting.uniforms.output.x, peak) * sample.coverage
+        let normalized = sample.light / peak
+        return SIMD4(
+            encodedSRGB(normalized.x) * alpha,
+            encodedSRGB(normalized.y) * alpha,
+            encodedSRGB(normalized.z) * alpha,
+            alpha
         )
     }
 
     // MARK: - Relevance
-
-    /// A pointer light out of reach of `frame` adds nothing there, so its exact
-    /// position doesn't matter: a canonical value keeps distant rims' inputs
-    /// unchanged while the pointer moves, so they don't re-render.
-    static func effectiveKeyLight(_ keyLight: GlassKeyLight, for frame: CGRect) -> GlassKeyLight {
-        guard keyLight.pointerWeight >= 1, frame.width > 0, frame.height > 0 else { return keyLight }
-        let distance = distance(from: keyLight.position, to: frame)
-        return distance >= GlassLightingStyle.pointerLightReach
-            ? GlassKeyLight(position: .zero, pointerWeight: 1)
-            : keyLight
-    }
 
     /// Only icons close enough to light some part of `frame`.
     static func emitters(_ emitters: [GlassLightEmitter], reaching frame: CGRect) -> [GlassLightEmitter] {
@@ -106,108 +237,10 @@ enum GlassLightingEngine {
         return (dx * dx + dy * dy).squareRoot()
     }
 
-    // MARK: - Lighting
-
-    static func light(
-        at sample: RimSample,
-        shape: GlassRimShape,
-        frame: CGRect,
-        keyLight: GlassKeyLight,
-        emitters: [GlassLightEmitter],
-        sceneBounds: CGRect,
-        intensity: GlassLightingStyle.Intensity
-    ) -> LightRGB {
-        let key = keyTerms(at: sample, shape: shape, frame: frame, keyLight: keyLight)
-        let share = GlassLightingStyle.ambientDirectionalShare
-        // While the pointer leads, only a share of the default light remains.
-        let directionalWeight = (1 - key.pointerWeight) + key.pointerWeight * share
-        let white = intensity.key * key.directionalFront * directionalWeight
-            + intensity.back * key.directionalBack * directionalWeight
-            + key.pointerWeight * (intensity.pointer * key.pointerFront + intensity.back * key.pointerBack)
-            + intensity.ambient
-        var total = LightRGB.white * white
-
-        for emitter in emitters {
-            let visibility = visibility(of: emitter.position, in: sceneBounds)
-            guard visibility > 0 else { continue }
-
-            let dx = emitter.position.x - sample.position.x
-            let dy = emitter.position.y - sample.position.y
-            let distance = (dx * dx + dy * dy).squareRoot()
-            let falloff = windowedFalloff(distance: distance, range: GlassLightingStyle.emitterReach)
-            guard falloff > 0 else { continue }
-
-            // An icon inside this shape lights the rim from within.
-            let facingNormal = contains(emitter.position, shape: shape, frame: frame)
-                ? CGVector(dx: -sample.normal.dx, dy: -sample.normal.dy)
-                : sample.normal
-            let cosine = distance > 0.001 ? (facingNormal.dx * dx + facingNormal.dy * dy) / distance : 1
-            let wrap = GlassLightingStyle.facingWrap
-            let facing = max(0, (cosine + wrap) / (1 + wrap))
-
-            let amount = intensity.emitter * emitter.light.strength * falloff * facing * visibility
-            total = total + emitter.light.color * amount
-        }
-        return total
-    }
-
-    struct KeyLightTerms: Equatable {
-        /// Default top-left light: specular on facing edges, refraction on the far ones.
-        let directionalFront: CGFloat
-        let directionalBack: CGFloat
-        /// Light above the pointer, already faded by distance.
-        let pointerFront: CGFloat
-        let pointerBack: CGFloat
-        let pointerWeight: CGFloat
-    }
-
-    /// The key light's terms at one rim sample, before intensity is applied.
-    static func keyTerms(
-        at sample: RimSample,
-        shape: GlassRimShape,
-        frame: CGRect,
-        keyLight: GlassKeyLight
-    ) -> KeyLightTerms {
-        let exponent = GlassLightingStyle.specularExponent
-        let direction = GlassLightingStyle.defaultKeyLightDirection
-        let directionalCosine = sample.normal.dx * direction.dx + sample.normal.dy * direction.dy
-        let directionalFront = pow(max(0, directionalCosine), exponent)
-        let directionalBack = pow(max(0, -directionalCosine), exponent)
-
-        let weight = min(max(keyLight.pointerWeight, 0), 1)
-        guard weight > 0 else {
-            return KeyLightTerms(
-                directionalFront: directionalFront,
-                directionalBack: directionalBack,
-                pointerFront: 0,
-                pointerBack: 0,
-                pointerWeight: 0
-            )
-        }
-
-        let dx = keyLight.position.x - sample.position.x
-        let dy = keyLight.position.y - sample.position.y
-        let height = GlassLightingStyle.pointerLightHeight
-        let length = (dx * dx + dy * dy + height * height).squareRoot()
-        // A pointer over this shape lights its rim from within.
-        let facingNormal = contains(keyLight.position, shape: shape, frame: frame)
-            ? CGVector(dx: -sample.normal.dx, dy: -sample.normal.dy)
-            : sample.normal
-        let cosine = (facingNormal.dx * dx + facingNormal.dy * dy) / length
-        let reach = windowedFalloff(distance: (dx * dx + dy * dy).squareRoot(), range: GlassLightingStyle.pointerLightReach)
-        let pointerExponent = GlassLightingStyle.pointerSpecularExponent
-
-        return KeyLightTerms(
-            directionalFront: directionalFront,
-            directionalBack: directionalBack,
-            pointerFront: pow(max(0, cosine), pointerExponent) * reach,
-            pointerBack: pow(max(0, -cosine), pointerExponent) * reach,
-            pointerWeight: weight
-        )
-    }
+    // MARK: - Lighting helpers
 
     /// `(1 - (d/R)²)²`: smooth inverse-square-like falloff that reaches zero at `range`.
-    static func windowedFalloff(distance: CGFloat, range: CGFloat) -> CGFloat {
+    static func windowedFalloff<Value: BinaryFloatingPoint>(distance: Value, range: Value) -> Value {
         guard range > 0, distance < range else { return 0 }
         let ratio = distance / range
         let window = 1 - ratio * ratio
@@ -223,6 +256,12 @@ enum GlassLightingEngine {
         return progress * progress * (3 - 2 * progress)
     }
 
+    /// Metal's `smoothstep`.
+    static func smoothstep(_ edge0: Float, _ edge1: Float, _ value: Float) -> Float {
+        let progress = unitClamp((value - edge0) / (edge1 - edge0))
+        return progress * progress * (3 - 2 * progress)
+    }
+
     // MARK: - Geometry
 
     static func contains(_ point: CGPoint, shape: GlassRimShape, frame: CGRect) -> Bool {
@@ -231,77 +270,5 @@ enum GlassLightingEngine {
         let dx = max(abs(point.x - frame.midX) - (frame.width / 2 - radius), 0)
         let dy = max(abs(point.y - frame.midY) - (frame.height / 2 - radius), 0)
         return dx * dx + dy * dy <= radius * radius
-    }
-
-    /// Points evenly spaced by arc length around the shape, clockwise from the
-    /// start of the top edge, each with its outward unit normal.
-    static func perimeterSamples(of shape: GlassRimShape, in frame: CGRect, count: Int) -> [RimSample] {
-        guard count > 0, frame.width > 0, frame.height > 0 else { return [] }
-
-        let radius = shape.cornerRadius(in: frame.size)
-        let horizontal = max(frame.width - 2 * radius, 0)
-        let vertical = max(frame.height - 2 * radius, 0)
-        let arc = CGFloat.pi / 2 * radius
-        let segments: [(length: CGFloat, sample: (CGFloat) -> RimSample)] = [
-            (horizontal, { t in
-                RimSample(position: CGPoint(x: frame.minX + radius + t, y: frame.minY), normal: CGVector(dx: 0, dy: -1))
-            }),
-            (arc, { t in
-                corner(center: CGPoint(x: frame.maxX - radius, y: frame.minY + radius), radius: radius, from: -.pi / 2, progress: t / max(arc, 0.0001))
-            }),
-            (vertical, { t in
-                RimSample(position: CGPoint(x: frame.maxX, y: frame.minY + radius + t), normal: CGVector(dx: 1, dy: 0))
-            }),
-            (arc, { t in
-                corner(center: CGPoint(x: frame.maxX - radius, y: frame.maxY - radius), radius: radius, from: 0, progress: t / max(arc, 0.0001))
-            }),
-            (horizontal, { t in
-                RimSample(position: CGPoint(x: frame.maxX - radius - t, y: frame.maxY), normal: CGVector(dx: 0, dy: 1))
-            }),
-            (arc, { t in
-                corner(center: CGPoint(x: frame.minX + radius, y: frame.maxY - radius), radius: radius, from: .pi / 2, progress: t / max(arc, 0.0001))
-            }),
-            (vertical, { t in
-                RimSample(position: CGPoint(x: frame.minX, y: frame.maxY - radius - t), normal: CGVector(dx: -1, dy: 0))
-            }),
-            (arc, { t in
-                corner(center: CGPoint(x: frame.minX + radius, y: frame.minY + radius), radius: radius, from: .pi, progress: t / max(arc, 0.0001))
-            }),
-        ]
-
-        let perimeter = segments.reduce(0) { $0 + $1.length }
-        guard perimeter > 0 else { return [] }
-
-        let drawable = segments.filter { $0.length > 0 }
-        var samples: [RimSample] = []
-        samples.reserveCapacity(count)
-        for index in 0..<count {
-            var distance = (CGFloat(index) + 0.5) * perimeter / CGFloat(count)
-            var sample: RimSample?
-            for segment in drawable {
-                if distance <= segment.length {
-                    sample = segment.sample(distance)
-                    break
-                }
-                distance -= segment.length
-            }
-            // Rounding can push the last distance a hair past the end.
-            if let sample {
-                samples.append(sample)
-            } else if let last = drawable.last {
-                samples.append(last.sample(last.length))
-            }
-        }
-        return samples
-    }
-
-    /// A point on a quarter arc, `progress` 0…1 clockwise from `start` (radians, y down).
-    private static func corner(center: CGPoint, radius: CGFloat, from start: CGFloat, progress: CGFloat) -> RimSample {
-        let angle = start + .pi / 2 * min(max(progress, 0), 1)
-        let normal = CGVector(dx: cos(angle), dy: sin(angle))
-        return RimSample(
-            position: CGPoint(x: center.x + radius * normal.dx, y: center.y + radius * normal.dy),
-            normal: normal
-        )
     }
 }

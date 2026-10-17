@@ -1,69 +1,57 @@
 import AppKit
 import SwiftUI
 import Testing
+import simd
 @testable import SideStash
 
 struct GlassLightingEngineTests {
     private typealias Engine = GlassLightingEngine
+    private typealias Intensity = GlassLightingStyle.Intensity
+
     private let plateFrame = CGRect(x: 12, y: 70, width: 296, height: 44)
     private let plateShape = GlassRimShape.roundedRect(cornerRadius: 12)
+    private let sceneBounds = CGRect(x: 0, y: 0, width: 320, height: 420)
     private let blue = IconLight(color: LightRGB(sRGBRed: 0.3, green: 0.6, blue: 1), strength: 1)
     private let red = IconLight(color: LightRGB(sRGBRed: 1, green: 0.4, blue: 0.4), strength: 1)
-    /// Colored light only, so emitter behavior can be read directly.
-    private let emitterOnly = GlassLightingStyle.Intensity(key: 0, pointer: 0, back: 0, ambient: 0, emitter: 1, refractionBand: 0, maxOpacity: 1)
-    /// White light only.
-    private let keyOnly = GlassLightingStyle.Intensity(key: 1, pointer: 1, back: 1, ambient: 0, emitter: 0, refractionBand: 0, maxOpacity: 1)
 
-    // MARK: - Perimeter
+    // One light at a time, so each can be read directly.
+    private let keyOnly = Intensity(key: 1, pointer: 0, back: 0, edge: 0, emitter: 0, maxOpacity: 1)
+    private let backOnly = Intensity(key: 0, pointer: 0, back: 1, edge: 0, emitter: 0, maxOpacity: 1)
+    private let pointerOnly = Intensity(key: 0, pointer: 1, back: 0, edge: 0, emitter: 0, maxOpacity: 1)
+    private let edgeOnly = Intensity(key: 0, pointer: 0, back: 0, edge: 1, emitter: 0, maxOpacity: 1)
+    private let emitterOnly = Intensity(key: 0, pointer: 0, back: 0, edge: 0, emitter: 1, maxOpacity: 1)
 
-    @Test func perimeterSamples_lieOnTheOutlineWithOutwardUnitNormals() {
-        for (shape, frame) in [(plateShape, plateFrame), (GlassRimShape.capsule, CGRect(x: 94, y: 364, width: 132, height: 40))] {
-            let samples = Engine.perimeterSamples(of: shape, in: frame, count: 48)
-            let radius = shape.cornerRadius(in: frame.size)
-            let center = CGPoint(x: frame.midX, y: frame.midY)
-
-            #expect(samples.count == 48)
-            for sample in samples {
-                // On the outline: outside distance of the rounded rect is zero.
-                let dx = max(abs(sample.position.x - center.x) - (frame.width / 2 - radius), 0)
-                let dy = max(abs(sample.position.y - center.y) - (frame.height / 2 - radius), 0)
-                let onEdge = abs(sample.position.x - frame.minX) < 0.01
-                    || abs(sample.position.x - frame.maxX) < 0.01
-                    || abs(sample.position.y - frame.minY) < 0.01
-                    || abs(sample.position.y - frame.maxY) < 0.01
-                    || abs((dx * dx + dy * dy).squareRoot() - radius) < 0.01
-                #expect(onEdge)
-
-                let length = (sample.normal.dx * sample.normal.dx + sample.normal.dy * sample.normal.dy).squareRoot()
-                #expect(abs(length - 1) < 0.001)
-                let outward = sample.normal.dx * (sample.position.x - center.x) + sample.normal.dy * (sample.position.y - center.y)
-                #expect(outward > 0)
-            }
-        }
+    /// The plate's top-left corner, where its outline faces the key light,
+    /// and the opposite corner; `inset` points in along the outline's normal.
+    private func facingKeyLight(_ inset: Float) -> SIMD2<Float> {
+        SIMD2(4.8 + 0.6 * inset, 2.4 + 0.8 * inset)
     }
 
-    @Test func contains_respectsRoundedCorners() {
-        #expect(Engine.contains(CGPoint(x: plateFrame.midX, y: plateFrame.midY), shape: plateShape, frame: plateFrame))
-        #expect(Engine.contains(CGPoint(x: plateFrame.minX + 1, y: plateFrame.midY), shape: plateShape, frame: plateFrame))
-        // The very corner is cut off by the 12 pt radius.
-        #expect(!Engine.contains(CGPoint(x: plateFrame.minX + 1, y: plateFrame.minY + 1), shape: plateShape, frame: plateFrame))
-        #expect(!Engine.contains(CGPoint(x: plateFrame.midX, y: plateFrame.minY - 1), shape: plateShape, frame: plateFrame))
+    private func facingAway(_ inset: Float) -> SIMD2<Float> {
+        SIMD2(291.2 - 0.6 * inset, 41.6 - 0.8 * inset)
     }
 
     // MARK: - Key light
 
-    @Test func defaultKeyLight_brightensTopLeftAndFaintlyRefractsBottomRight() {
-        let topLeft = sample(normal: CGVector(dx: -0.707, dy: -0.707), at: CGPoint(x: plateFrame.minX + 3.5, y: plateFrame.minY + 3.5))
-        let bottomRight = sample(normal: CGVector(dx: 0.707, dy: 0.707), at: CGPoint(x: plateFrame.maxX - 3.5, y: plateFrame.maxY - 3.5))
+    @Test func keyLight_putsAHighlightInsideTheSlopeFacingIt() {
+        let lighting = plateLighting(intensity: keyOnly)
 
-        let front = Engine.keyTerms(at: topLeft, shape: plateShape, frame: plateFrame, keyLight: .default)
-        let back = Engine.keyTerms(at: bottomRight, shape: plateShape, frame: plateFrame, keyLight: .default)
+        let peak = brightestInset(lighting, along: facingKeyLight)
+        // Inside the slope: neither on the outline nor at the plateau.
+        #expect(peak > 0.5)
+        #expect(peak < 4)
+        let highlight = white(at: facingKeyLight(peak), lighting)
+        #expect(highlight > 0.8)
 
-        #expect(front.directionalFront > 0.8)
-        #expect(front.directionalBack == 0)
-        #expect(back.directionalFront == 0)
-        #expect(back.directionalBack > 0.8)
-        #expect(front.pointerWeight == 0)
+        // The slope facing away catches next to none of it.
+        #expect(brightest(lighting, along: facingAway) < highlight * 0.05)
+    }
+
+    @Test func backLight_leavesTheSlopesFacingAway() {
+        let lighting = plateLighting(intensity: backOnly)
+
+        #expect(brightest(lighting, along: facingAway) > 0.3)
+        #expect(brightest(lighting, along: facingKeyLight) == 0)
 
         for scheme in [ColorScheme.light, .dark] {
             for kind in [GlassSurfaceKind.panel, .pill, .plate] {
@@ -73,117 +61,138 @@ struct GlassLightingEngineTests {
         }
     }
 
-    @Test func pointerKeyLight_brightensTheEdgesFacingIt() {
-        let pointer = GlassKeyLight(position: CGPoint(x: plateFrame.maxX + 40, y: plateFrame.midY), pointerWeight: 1)
-        let rightEdge = sample(normal: CGVector(dx: 1, dy: 0), at: CGPoint(x: plateFrame.maxX, y: plateFrame.midY))
-        let leftEdge = sample(normal: CGVector(dx: -1, dy: 0), at: CGPoint(x: plateFrame.minX, y: plateFrame.midY))
+    // MARK: - Pointer light
 
-        let right = Engine.keyTerms(at: rightEdge, shape: plateShape, frame: plateFrame, keyLight: pointer)
-        let left = Engine.keyTerms(at: leftEdge, shape: plateShape, frame: plateFrame, keyLight: pointer)
+    @Test func pointerHighlight_rollsTowardThePlateauAsThePointerComesCloser() {
+        func peak(pointerDistance: CGFloat) -> Float {
+            let pointer = GlassKeyLight(
+                position: CGPoint(x: plateFrame.maxX + pointerDistance, y: plateFrame.midY),
+                pointerWeight: 1
+            )
+            let lighting = plateLighting(intensity: pointerOnly, keyLight: pointer)
+            return brightestInset(lighting) { SIMD2(296 - $0, 22) }
+        }
 
-        #expect(right.pointerFront > 0.3)
-        // The edge facing away from the pointer gets none of its specular.
-        #expect(left.pointerFront == 0)
+        let far = peak(pointerDistance: 100)
+        let near = peak(pointerDistance: 12)
+        #expect(far > 0.3)
+        #expect(near > far + 0.5)
     }
 
-    @Test func pointerLight_visiblyBrightensNativeGlassRims() {
+    @Test func pointerOverASurface_lightsItsNearestSlopeFromWithin() {
+        let pointer = GlassKeyLight(position: CGPoint(x: plateFrame.minX + 30, y: plateFrame.midY), pointerWeight: 1)
+        let lighting = plateLighting(intensity: pointerOnly, keyLight: pointer)
+
+        let leading = brightest(lighting) { SIMD2($0, 22) }
+        let trailing = brightest(lighting) { SIMD2(296 - $0, 22) }
+        #expect(leading > 0.2)
+        #expect(leading > trailing * 4)
+    }
+
+    @Test func pointerLight_visiblyBrightensNativeGlassBevels() {
         // The pill's leading end, with the pointer just beside it.
         let pillFrame = CGRect(x: 94, y: 364, width: 132, height: 40)
-        let leadingEnd = sample(normal: CGVector(dx: -1, dy: 0), at: CGPoint(x: pillFrame.minX, y: pillFrame.midY))
         let pointer = GlassKeyLight(position: CGPoint(x: pillFrame.minX - 30, y: pillFrame.midY), pointerWeight: 1)
 
         for scheme in [ColorScheme.light, .dark] {
             let intensity = GlassLightingStyle.intensity(for: .pill, colorScheme: scheme)
-            func white(_ keyLight: GlassKeyLight) -> CGFloat {
-                Engine.light(
-                    at: leadingEnd,
+            func brightestLeadingEnd(_ keyLight: GlassKeyLight) -> Float {
+                let lighting = Engine.lighting(
                     shape: .capsule,
                     frame: pillFrame,
+                    kind: .pill,
                     keyLight: keyLight,
                     emitters: [],
-                    sceneBounds: CGRect(x: 0, y: 0, width: 320, height: 420),
-                    intensity: intensity
-                ).maxComponent
+                    sceneBounds: sceneBounds,
+                    intensity: intensity,
+                    reduceTransparency: false,
+                    scale: 2
+                )
+                return brightest(lighting) { SIMD2($0, 20) }
             }
 
-            #expect(white(pointer) > white(.default) + 0.25)
+            #expect(brightestLeadingEnd(pointer) > brightestLeadingEnd(.default) + 0.25)
         }
-    }
-
-    @Test func pointerKeyLight_fadesWithDistance() {
-        let edge = sample(normal: CGVector(dx: 1, dy: 0), at: CGPoint(x: plateFrame.maxX, y: plateFrame.midY))
-        let near = GlassKeyLight(position: CGPoint(x: plateFrame.maxX + 40, y: plateFrame.midY), pointerWeight: 1)
-        let far = GlassKeyLight(position: CGPoint(x: plateFrame.maxX + 240, y: plateFrame.midY), pointerWeight: 1)
-
-        let nearFront = Engine.keyTerms(at: edge, shape: plateShape, frame: plateFrame, keyLight: near).pointerFront
-        let farFront = Engine.keyTerms(at: edge, shape: plateShape, frame: plateFrame, keyLight: far).pointerFront
-        #expect(nearFront > farFront)
     }
 
     // MARK: - Icon lights
 
-    @Test func iconInsideAPlate_lightsItsNearEdgeFromWithin() {
+    @Test func iconOnAPlate_lightsItsNearSlopeFromWithin() {
         let icon = GlassLightEmitter(position: CGPoint(x: plateFrame.minX + 24, y: plateFrame.midY), light: blue)
-        let leftEdge = sample(normal: CGVector(dx: -1, dy: 0), at: CGPoint(x: plateFrame.minX, y: plateFrame.midY))
-        let rightEdge = sample(normal: CGVector(dx: 1, dy: 0), at: CGPoint(x: plateFrame.maxX, y: plateFrame.midY))
+        let lighting = plateLighting(intensity: emitterOnly, emitters: [icon])
 
-        let left = light(at: leftEdge, emitters: [icon])
-        let right = light(at: rightEdge, emitters: [icon])
-
-        #expect(left.blue > 0.5)
-        #expect(right.maxComponent == 0)
+        let leading = Engine.bevelLight(at: SIMD2(1, 22), lighting: lighting).light
+        let trailing = Engine.bevelLight(at: SIMD2(295, 22), lighting: lighting).light
+        #expect(leading.z > 0.3)
+        #expect(leading.z > leading.x)
+        #expect(trailing == .zero)
     }
 
-    @Test func iconAboveAPlate_lightsItsTopEdgeMoreThanItsBottom() {
-        let neighbor = GlassLightEmitter(position: CGPoint(x: plateFrame.minX + 24, y: plateFrame.minY - 28), light: blue)
-        let topEdge = sample(normal: CGVector(dx: 0, dy: -1), at: CGPoint(x: plateFrame.minX + 24, y: plateFrame.minY))
-        let bottomEdge = sample(normal: CGVector(dx: 0, dy: 1), at: CGPoint(x: plateFrame.minX + 24, y: plateFrame.maxY))
+    @Test func refraction_pullsAnIconsLightOutOntoTheSlope() {
+        let icon = GlassLightEmitter(position: CGPoint(x: plateFrame.minX + 24, y: plateFrame.midY), light: blue)
+        var bent = plateLighting(intensity: emitterOnly, emitters: [icon])
+        // The icon's core alone falls off fast enough to show the shift.
+        bent.uniforms.emitterTuning.y = 0
+        var straight = bent
+        straight.uniforms.profile.w = 1
 
-        #expect(light(at: topEdge, emitters: [neighbor]).blue > light(at: bottomEdge, emitters: [neighbor]).blue)
+        let slope = SIMD2<Float>(1, 22)
+        let refracted = Engine.bevelLight(at: slope, lighting: bent).light.z
+        let unrefracted = Engine.bevelLight(at: slope, lighting: straight).light.z
+        #expect(refracted > unrefracted * 1.3)
+    }
+
+    @Test func iconAboveAPlate_lightsItsTopSlopeMoreThanItsBottom() {
+        let neighbor = GlassLightEmitter(position: CGPoint(x: plateFrame.minX + 24, y: plateFrame.minY - 28), light: blue)
+        let lighting = plateLighting(intensity: emitterOnly, emitters: [neighbor])
+
+        let top = Engine.bevelLight(at: SIMD2(24, 1), lighting: lighting).light.z
+        let bottom = Engine.bevelLight(at: SIMD2(24, 43), lighting: lighting).light.z
+        #expect(top > 0.1)
+        #expect(top > bottom * 4)
     }
 
     @Test func iconsBeyondReachOrOutsideThePanel_addNoLight() {
-        let edge = sample(normal: CGVector(dx: -1, dy: 0), at: CGPoint(x: plateFrame.minX, y: plateFrame.midY))
         let farAway = GlassLightEmitter(
-            position: CGPoint(x: plateFrame.minX + GlassLightingStyle.emitterReach + 1, y: plateFrame.midY),
+            position: CGPoint(x: plateFrame.minX + 7 + GlassLightingStyle.emitterReach, y: plateFrame.midY),
             light: blue
         )
         let outsidePanel = GlassLightEmitter(position: CGPoint(x: plateFrame.minX + 24, y: -10), light: blue)
 
-        #expect(light(at: edge, emitters: [farAway]).maxComponent == 0)
-        #expect(light(at: edge, emitters: [outsidePanel]).maxComponent == 0)
+        let lighting = plateLighting(intensity: emitterOnly, emitters: [farAway])
+        #expect(Engine.bevelLight(at: SIMD2(1, 22), lighting: lighting).light == .zero)
+        #expect(plateLighting(intensity: emitterOnly, emitters: [outsidePanel]).emitters.isEmpty)
     }
 
     @Test func iconsFadeOutNearThePanelEdge() {
-        let bounds = CGRect(x: 0, y: 0, width: 320, height: 420)
-
-        #expect(Engine.visibility(of: CGPoint(x: 160, y: 200), in: bounds) == 1)
-        let nearEdge = Engine.visibility(of: CGPoint(x: 160, y: 4), in: bounds)
+        #expect(Engine.visibility(of: CGPoint(x: 160, y: 200), in: sceneBounds) == 1)
+        let nearEdge = Engine.visibility(of: CGPoint(x: 160, y: 4), in: sceneBounds)
         #expect(nearEdge > 0)
         #expect(nearEdge < 1)
-        #expect(Engine.visibility(of: CGPoint(x: 160, y: -4), in: bounds) == 0)
+        #expect(Engine.visibility(of: CGPoint(x: 160, y: -4), in: sceneBounds) == 0)
     }
 
     @Test func overlappingIconLights_mixTheirColors() {
         let frame = CGRect(x: 0, y: 0, width: 200, height: 100)
-        let topEdge = sample(normal: CGVector(dx: 0, dy: -1), at: CGPoint(x: 100, y: 0))
         let emitters = [
             GlassLightEmitter(position: CGPoint(x: 80, y: 30), light: red),
             GlassLightEmitter(position: CGPoint(x: 120, y: 30), light: blue),
         ]
-
-        let mixed = Engine.light(
-            at: topEdge,
+        let lighting = Engine.lighting(
             shape: .roundedRect(cornerRadius: 12),
             frame: frame,
+            kind: .plate,
             keyLight: .default,
             emitters: emitters,
-            sceneBounds: CGRect(x: 0, y: 0, width: 320, height: 420),
-            intensity: emitterOnly
+            sceneBounds: sceneBounds,
+            intensity: emitterOnly,
+            reduceTransparency: false,
+            scale: 2
         )
 
-        #expect(mixed.red > mixed.green)
-        #expect(mixed.blue > mixed.green)
+        let mixed = Engine.bevelLight(at: SIMD2(100, 1), lighting: lighting).light
+        #expect(mixed.x > mixed.y)
+        #expect(mixed.z > mixed.y)
     }
 
     @Test func windowedFalloff_isFullAtTheSourceAndZeroAtTheRange() {
@@ -194,21 +203,20 @@ struct GlassLightingEngineTests {
 
     // MARK: - Relevance
 
-    @Test func distantRims_seeACanonicalKeyLight() {
+    @Test func distantPointers_lightSurfacesIdentically() {
         let reach = GlassLightingStyle.pointerLightReach
+        let intensity = GlassLightingStyle.intensity(for: .plate, colorScheme: .dark)
         let near = GlassKeyLight(position: CGPoint(x: plateFrame.maxX + 20, y: plateFrame.midY), pointerWeight: 1)
         let farA = GlassKeyLight(position: CGPoint(x: plateFrame.maxX + reach + 10, y: plateFrame.midY), pointerWeight: 1)
         let farB = GlassKeyLight(position: CGPoint(x: plateFrame.maxX + reach + 60, y: plateFrame.minY), pointerWeight: 1)
-        let entering = GlassKeyLight(position: farA.position, pointerWeight: 0.5)
 
-        #expect(Engine.effectiveKeyLight(near, for: plateFrame) == near)
-        // Out of reach, any pointer position lights the rim identically.
-        #expect(Engine.effectiveKeyLight(farA, for: plateFrame) == Engine.effectiveKeyLight(farB, for: plateFrame))
-        // While gliding in or out, the light is passed through untouched.
-        #expect(Engine.effectiveKeyLight(entering, for: plateFrame) == entering)
+        // Out of reach, the pointer's position changes nothing, so nothing redraws.
+        #expect(plateLighting(intensity: intensity, keyLight: farA) == plateLighting(intensity: intensity, keyLight: farB))
+        #expect(plateLighting(intensity: intensity, keyLight: farA).uniforms.pointer.w == 0)
+        #expect(plateLighting(intensity: intensity, keyLight: near) != plateLighting(intensity: intensity, keyLight: farA))
     }
 
-    @Test func rims_onlyReceiveIconsThatReachThem() {
+    @Test func surfaces_onlyReceiveIconsThatReachThem() {
         let inside = GlassLightEmitter(position: CGPoint(x: plateFrame.minX + 24, y: plateFrame.midY), light: blue)
         let nearby = GlassLightEmitter(position: CGPoint(x: plateFrame.minX + 24, y: plateFrame.maxY + 30), light: blue)
         let distant = GlassLightEmitter(
@@ -216,56 +224,69 @@ struct GlassLightingEngineTests {
             light: blue
         )
 
-        #expect(Engine.emitters([inside, nearby, distant], reaching: plateFrame) == [inside, nearby])
-        #expect(Engine.distance(from: inside.position, to: plateFrame) == 0)
-        #expect(Engine.emitters([inside], reaching: .zero).isEmpty)
+        let lit = Engine.bevelEmitters([inside, nearby, distant], shape: plateShape, frame: plateFrame, sceneBounds: sceneBounds)
+        // In the plate's own coordinates, flagged when on the plate.
+        #expect(lit.map(\.position) == [SIMD4(24, 22, 1, 0), SIMD4(24, 74, 0, 0)])
+        #expect(Engine.bevelEmitters([inside], shape: plateShape, frame: .zero, sceneBounds: sceneBounds).isEmpty)
     }
 
-    // MARK: - Stops
-
-    @Test func rimStops_wrapAroundTheShapeInOrder() {
-        let stops = Engine.rimStops(
-            shape: plateShape,
-            frame: plateFrame,
-            kind: .plate,
-            keyLight: .default,
-            emitters: [GlassLightEmitter(position: CGPoint(x: plateFrame.minX + 24, y: plateFrame.midY), light: blue)],
-            sceneBounds: CGRect(x: 0, y: 0, width: 320, height: 420),
-            intensity: GlassLightingStyle.intensity(for: .plate, colorScheme: .dark)
-        )
-
-        #expect(stops.count == GlassLightingStyle.sampleCount(for: .plate) + 2)
-        #expect(stops.first?.location == 0)
-        #expect(stops.last?.location == 1)
-        #expect(zip(stops, stops.dropFirst()).allSatisfy { $0.location <= $1.location })
-        if let first = stops.first, let last = stops.last {
-            #expect(first.moved(to: 1) == last)
+    @Test func manyIcons_leaveTheFarthestOut() {
+        let icons = (0..<20).map { index in
+            GlassLightEmitter(
+                position: CGPoint(x: plateFrame.minX + 24, y: plateFrame.maxY + 2 + CGFloat(19 - index) * 5),
+                light: blue
+            )
         }
+
+        let lit = Engine.bevelEmitters(icons, shape: plateShape, frame: plateFrame, sceneBounds: sceneBounds)
+        #expect(lit.count == GlassLightingStyle.maxEmitters)
+        // The four farthest, 97…82 pt below the plate, are left out.
+        #expect(lit.map(\.position.y).max() == Float(44 + 77))
     }
 
-    @Test func stop_normalizesColorAndCapsOpacity() {
-        let white = Engine.stop(for: LightRGB.white * 0.3, at: 0.5, maxOpacity: 0.9)
-        #expect(abs(white.opacity - 0.3) < 0.0001)
-        #expect(abs(white.red - 1) < 0.0001)
+    @Test func reduceTransparency_keepsOnlyAPlainEdge() {
+        let intensity = GlassLightingStyle.intensity(for: .plate, colorScheme: .dark)
+        let icon = GlassLightEmitter(position: CGPoint(x: plateFrame.minX + 24, y: plateFrame.midY), light: blue)
+        let pointer = GlassKeyLight(position: CGPoint(x: plateFrame.minX + 40, y: plateFrame.midY), pointerWeight: 1)
+        let lighting = plateLighting(intensity: intensity, keyLight: pointer, emitters: [icon], reduceTransparency: true)
 
-        let bright = Engine.stop(for: LightRGB.white * 4, at: 0.5, maxOpacity: 0.9)
-        #expect(bright.opacity == 0.9)
+        #expect(lighting.emitters.isEmpty)
+        let edge = Engine.bevelLight(at: SIMD2(148, 0.25), lighting: lighting).light
+        #expect(edge.x > 0.1)
+        #expect(edge.x == edge.y && edge.y == edge.z)
+        #expect(white(at: SIMD2(148, 3), lighting) < edge.x * 0.1)
 
-        #expect(Engine.stop(for: .zero, at: 0.5, maxOpacity: 0.9).opacity == 0)
+        // The pointer moving changes nothing.
+        let moved = GlassKeyLight(position: CGPoint(x: 60, y: 80), pointerWeight: 1)
+        #expect(plateLighting(intensity: intensity, keyLight: moved, emitters: [icon], reduceTransparency: true) == lighting)
     }
 
-    @Test func location_followsCoreAnimationsConicSweep() {
-        let frame = CGRect(x: 0, y: 0, width: 296, height: 44)
+    // MARK: - Slope and plateau
 
-        // Counter-clockwise from the trailing side, as seen on screen.
-        #expect(abs(Engine.location(of: CGPoint(x: 296, y: 22), in: frame) - 0) < 0.0001)
-        #expect(abs(Engine.location(of: CGPoint(x: 148, y: 0), in: frame) - 0.25) < 0.0001)
-        #expect(abs(Engine.location(of: CGPoint(x: 0, y: 22), in: frame) - 0.5) < 0.0001)
-        #expect(abs(Engine.location(of: CGPoint(x: 148, y: 44), in: frame) - 0.75) < 0.0001)
+    @Test func plateau_staysDarkAndTheSlopeFadesIntoIt() {
+        let lighting = plateLighting(intensity: GlassLightingStyle.intensity(for: .plate, colorScheme: .light))
 
-        // Angles are measured in the layer's unit square, not geometrically.
-        let normalized = atan2(0.5, 52.0 / 296.0) / (2 * .pi)
-        #expect(abs(Engine.location(of: CGPoint(x: 200, y: 0), in: frame) - normalized) < 0.0001)
+        #expect(Engine.bevelLight(at: SIMD2(148, 7), lighting: lighting).light == .zero)
+        #expect(white(at: SIMD2(148, 5.9), lighting) < 0.02)
+    }
+
+    @Test func bevelColor_normalizesColorCapsOpacityAndSmoothsTheOutline() {
+        let lighting = plateLighting(intensity: edgeOnly)
+
+        let edge = Engine.bevelColor(at: SIMD2(148, 0.25), lighting: lighting)
+        #expect(abs(edge.w - 0.95) < 0.001)
+        // White, premultiplied.
+        #expect(abs(edge.x - edge.w) < 0.001)
+
+        var capped = lighting
+        capped.uniforms.output.x = 0.5
+        #expect(abs(Engine.bevelColor(at: SIMD2(148, 0.25), lighting: capped).w - 0.5) < 0.001)
+
+        // A pixel straddling the outline is partly covered; one outside isn't drawn.
+        let straddling = Engine.bevelColor(at: SIMD2(148, -0.1), lighting: lighting).w
+        #expect(straddling > 0)
+        #expect(straddling < edge.w)
+        #expect(Engine.bevelColor(at: SIMD2(148, -1), lighting: lighting) == .zero)
     }
 
     @Test func surfaceGains_letPlatesLeadAndNativeGlassFollow() {
@@ -287,22 +308,53 @@ struct GlassLightingEngineTests {
         }
     }
 
-    // MARK: - Helpers
-
-    private func sample(normal: CGVector, at position: CGPoint) -> Engine.RimSample {
-        let length = (normal.dx * normal.dx + normal.dy * normal.dy).squareRoot()
-        return Engine.RimSample(position: position, normal: CGVector(dx: normal.dx / length, dy: normal.dy / length))
+    @Test func bevels_fitTheirSurfaces() {
+        // The panel's slope stays out from under the plates.
+        #expect(CGFloat(GlassLightingStyle.bevel(for: .panel).width) <= SideStashSidebarStyle.fileListInset)
+        #expect(CGFloat(GlassLightingStyle.bevel(for: .plate).width) < SideStashSidebarStyle.rowCornerRadius)
+        #expect(CGFloat(GlassLightingStyle.bevel(for: .pill).width) <= SideStashSidebarChromePolicy.bottomActionsHeight / 2)
+        // A tight, Apple-like edge everywhere.
+        for kind in [GlassSurfaceKind.panel, .pill, .plate] {
+            #expect(GlassLightingStyle.bevel(for: kind).profileExponent == 4)
+        }
     }
 
-    private func light(at sample: Engine.RimSample, emitters: [GlassLightEmitter]) -> LightRGB {
-        Engine.light(
-            at: sample,
+    // MARK: - Helpers
+
+    private func plateLighting(
+        intensity: Intensity,
+        keyLight: GlassKeyLight = .default,
+        emitters: [GlassLightEmitter] = [],
+        reduceTransparency: Bool = false
+    ) -> GlassBevelLighting {
+        Engine.lighting(
             shape: plateShape,
             frame: plateFrame,
-            keyLight: .default,
+            kind: .plate,
+            keyLight: keyLight,
             emitters: emitters,
-            sceneBounds: CGRect(x: 0, y: 0, width: 320, height: 420),
-            intensity: emitterOnly
+            sceneBounds: sceneBounds,
+            intensity: intensity,
+            reduceTransparency: reduceTransparency,
+            scale: 2
         )
+    }
+
+    private func white(at point: SIMD2<Float>, _ lighting: GlassBevelLighting) -> Float {
+        Engine.bevelLight(at: point, lighting: lighting).light.x
+    }
+
+    private var slopeInsets: [Float] {
+        Array(stride(from: Float(0.05), to: 6, by: 0.05))
+    }
+
+    /// The brightest white light across a slope, sampled `point(inset)`.
+    private func brightest(_ lighting: GlassBevelLighting, along point: (Float) -> SIMD2<Float>) -> Float {
+        slopeInsets.map { white(at: point($0), lighting) }.max() ?? 0
+    }
+
+    /// How far in from the outline the white light peaks across a slope.
+    private func brightestInset(_ lighting: GlassBevelLighting, along point: (Float) -> SIMD2<Float>) -> Float {
+        slopeInsets.max { white(at: point($0), lighting) < white(at: point($1), lighting) } ?? 0
     }
 }

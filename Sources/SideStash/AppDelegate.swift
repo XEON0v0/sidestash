@@ -19,6 +19,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        // Compile the glass bevel shader before the panel first shows.
+        GlassBevelRenderer.shared.prepare()
         setupStatusItem()
         setupDragDetector()
         FinderWindowTracker.shared.startMonitoring()

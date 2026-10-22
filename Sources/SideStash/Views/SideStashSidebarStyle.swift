@@ -58,11 +58,8 @@ enum SideStashSidebarChromePolicy {
         58
     }
 
-    static var closeButtonSize: CGFloat {
-        12
-    }
-
-    static var closeButtonHoverSize: CGFloat {
+    /// Width reserved for the system close button (its own frame is ~14 pt).
+    static var closeButtonSlotWidth: CGFloat {
         18
     }
 
@@ -71,15 +68,7 @@ enum SideStashSidebarChromePolicy {
     }
 
     static var headerTitleReservedSideWidth: CGFloat {
-        closeButtonLeadingInset + closeButtonHoverSize + 8
-    }
-
-    static var closeButtonFill: NSColor {
-        NSColor(srgbRed: 236 / 255, green: 103 / 255, blue: 101 / 255, alpha: 1)
-    }
-
-    static var closeButtonBorderAlpha: CGFloat {
-        0.16
+        closeButtonLeadingInset + closeButtonSlotWidth + 8
     }
 
     static var usesSystemPanelShadow: Bool {

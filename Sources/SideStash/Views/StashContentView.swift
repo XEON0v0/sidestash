@@ -121,29 +121,11 @@ struct StashContentView: View {
     }
 
     private var closeButton: some View {
-        Button(action: {
-            onClose?()
-        }) {
-            Circle()
-                .fill(Color(nsColor: SideStashSidebarChromePolicy.closeButtonFill))
-                .frame(
-                    width: SideStashSidebarChromePolicy.closeButtonSize,
-                    height: SideStashSidebarChromePolicy.closeButtonSize
-                )
-                .overlay(
-                    Circle()
-                        .stroke(
-                            Color.black.opacity(SideStashSidebarChromePolicy.closeButtonBorderAlpha),
-                            lineWidth: 1
-                        )
-                )
-                .frame(
-                    width: SideStashSidebarChromePolicy.closeButtonHoverSize,
-                    height: SideStashSidebarChromePolicy.closeButtonHoverSize
-                )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text("Close"))
+        SystemCloseButton { onClose?() }
+            .frame(
+                width: SideStashSidebarChromePolicy.closeButtonSlotWidth,
+                height: SideStashSidebarStyle.headerHeight
+            )
     }
 
     private var fileGrid: some View {

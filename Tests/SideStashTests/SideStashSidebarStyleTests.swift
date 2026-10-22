@@ -16,26 +16,13 @@ struct SideStashSidebarStyleTests {
             SideStashSidebarChromePolicy.headerContainerHeight
                 >= SideStashSidebarStyle.headerTopInset + SideStashSidebarStyle.headerHeight
         )
-        #expect(SideStashSidebarChromePolicy.closeButtonSize == 12)
-        #expect(SideStashSidebarChromePolicy.closeButtonHoverSize == 18)
+        #expect(SideStashSidebarChromePolicy.closeButtonSlotWidth == 18)
     }
 
     @Test func headerLayout_keepsTrafficLightLeftAndTitleCentered() {
         #expect(SideStashSidebarChromePolicy.closeButtonLeadingInset == 12)
         #expect(SideStashSidebarChromePolicy.headerTitleReservedSideWidth >= 36)
-        #expect(SideStashSidebarChromePolicy.headerTitleReservedSideWidth == SideStashSidebarChromePolicy.closeButtonLeadingInset + SideStashSidebarChromePolicy.closeButtonHoverSize + 8)
-    }
-
-    @Test func closeButton_usesSampledLowSaturationFinderRed() throws {
-        let color = try #require(SideStashSidebarChromePolicy.closeButtonFill.usingColorSpace(.sRGB))
-
-        #expect(color.redComponent >= 0.91)
-        #expect(color.redComponent <= 0.94)
-        #expect(color.greenComponent >= 0.39)
-        #expect(color.greenComponent <= 0.42)
-        #expect(color.blueComponent >= 0.38)
-        #expect(color.blueComponent <= 0.41)
-        #expect(SideStashSidebarChromePolicy.closeButtonBorderAlpha < 0.3)
+        #expect(SideStashSidebarChromePolicy.headerTitleReservedSideWidth == SideStashSidebarChromePolicy.closeButtonLeadingInset + SideStashSidebarChromePolicy.closeButtonSlotWidth + 8)
     }
 
     @Test func panelDepth_usesOnlyTheSystemPanelShadow() {

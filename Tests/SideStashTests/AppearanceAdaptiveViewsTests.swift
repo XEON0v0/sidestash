@@ -69,6 +69,26 @@ struct AppearanceAdaptiveViewsTests {
         #expect(options.contains(.mouseEnteredAndExited))
     }
 
+    @Test func rowLabel_truncatesLongNamesInsideTheRow() throws {
+        let row = DraggableFileItemView(frame: NSRect(x: 0, y: 0, width: 296, height: 44))
+        let name = String(repeating: "a very long file name ", count: 12) + "final.pdf"
+        row.item = StashItem(
+            url: URL(fileURLWithPath: "/tmp/\(name)"),
+            name: name,
+            icon: NSImage(size: NSSize(width: 32, height: 32)),
+            light: nil,
+            originalURL: nil
+        )
+        let label = try #require(row.subviews.compactMap { $0 as? NSTextField }.first)
+
+        row.layoutSubtreeIfNeeded()
+
+        #expect(label.frame.maxX <= row.bounds.width)
+        #expect(label.contentCompressionResistancePriority(for: .horizontal) < .defaultHigh)
+        #expect(label.lineBreakMode == .byTruncatingMiddle)
+        #expect(row.toolTip == name)
+    }
+
     @Test func dropHighlight_followsTheAccentColorInBothAppearances() {
         let dropZone = DropZoneNSView(frame: NSRect(x: 0, y: 0, width: 320, height: 420))
 

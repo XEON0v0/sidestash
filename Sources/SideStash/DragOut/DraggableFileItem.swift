@@ -26,6 +26,15 @@ struct DraggableFileItem: NSViewRepresentable {
         nsView.item = item
         nsView.onInteractionChanged = onInteractionChanged
     }
+
+    /// The row takes the width it is offered; otherwise the label's full-length
+    /// fitting width would push a long file name past the panel edge.
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: DraggableFileItemView, context: Context) -> CGSize? {
+        CGSize(
+            width: proposal.width ?? nsView.fittingSize.width,
+            height: SideStashSidebarStyle.rowHeight
+        )
+    }
 }
 
 class DraggableFileItemView: NSView {
@@ -81,8 +90,12 @@ class DraggableFileItemView: NSView {
         label.font = NSFont.systemFont(ofSize: Layout.labelFontSize, weight: .medium)
         // Plain system color: an alpha variant would freeze at the launch appearance.
         label.textColor = .labelColor
-        label.lineBreakMode = .byTruncatingTail
+        // Middle truncation keeps the extension visible, as in Finder.
+        label.lineBreakMode = .byTruncatingMiddle
         label.maximumNumberOfLines = 1
+        label.cell?.truncatesLastVisibleLine = true
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        label.setContentHuggingPriority(.defaultLow, for: .horizontal)
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
 
@@ -143,6 +156,7 @@ class DraggableFileItemView: NSView {
     private func updateContent() {
         imageView.image = item?.icon
         label.stringValue = item?.name ?? ""
+        toolTip = item?.name
     }
 
     override func mouseDown(with event: NSEvent) {

@@ -136,7 +136,8 @@ struct BottomBulkActionsStyleTests {
 
     @Test func unavailableReasonsAreLocalizedInSupportedLanguages() throws {
         let reasonKeys = ["bulk.unavailable.empty", "bulk.restore.unavailable"]
-        let localizationNames = ["en", "zh-hans"]
+        // Bundle resource lookup is case-sensitive; match the folder name exactly.
+        let localizationNames = ["en", "zh-Hans"]
 
         for localizationName in localizationNames {
             let localizationURL = try #require(Bundle.module.url(

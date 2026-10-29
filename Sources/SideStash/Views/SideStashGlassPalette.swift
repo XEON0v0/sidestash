@@ -94,4 +94,11 @@ enum SideStashGlassPalette {
         light: { NSColor.black.withAlphaComponent(0.12) },
         dark: { NSColor.white.withAlphaComponent(0.18) }
     )
+
+    /// Hairline between the header pill's two segments: just enough to
+    /// separate them without cutting the glass in half.
+    static let pillDivider = SideStashAdaptiveColor(
+        light: { NSColor.black.withAlphaComponent(0.10) },
+        dark: { NSColor.white.withAlphaComponent(0.20) }
+    )
 }

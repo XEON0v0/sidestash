@@ -19,10 +19,20 @@ struct SideStashSidebarStyleTests {
         #expect(SideStashSidebarChromePolicy.closeButtonSlotWidth == 18)
     }
 
-    @Test func headerLayout_keepsTrafficLightLeftAndTitleCentered() {
+    @Test func headerLayout_keepsTrafficLightLeftAndMoreActionsPillRight() {
         #expect(SideStashSidebarChromePolicy.closeButtonLeadingInset == 12)
-        #expect(SideStashSidebarChromePolicy.headerTitleReservedSideWidth >= 36)
-        #expect(SideStashSidebarChromePolicy.headerTitleReservedSideWidth == SideStashSidebarChromePolicy.closeButtonLeadingInset + SideStashSidebarChromePolicy.closeButtonSlotWidth + 8)
+        #expect(SideStashSidebarChromePolicy.moreActionsHeight < SideStashSidebarStyle.headerHeight)
+        #expect(SideStashSidebarChromePolicy.moreActionsDividerHeight < SideStashSidebarChromePolicy.moreActionsHeight)
+        #expect(SideStashSidebarChromePolicy.moreActionsDividerWidth <= 1)
+        // Close button, pill and the gap between them fit the panel's 320 pt width.
+        let headerWidth: CGFloat = 320 - SideStashSidebarStyle.headerHorizontalInset * 2
+        let reserved = SideStashSidebarChromePolicy.closeButtonLeadingInset
+            + SideStashSidebarChromePolicy.closeButtonSlotWidth
+            + SideStashSidebarChromePolicy.moreActionsLeadingMaxWidth
+            + SideStashSidebarChromePolicy.moreActionsDividerWidth
+            + SideStashSidebarChromePolicy.moreActionsMenuSegmentWidth
+            + SideStashSidebarChromePolicy.moreActionsTrailingInset
+        #expect(reserved < headerWidth)
     }
 
     @Test func panelDepth_usesOnlyTheSystemPanelShadow() {

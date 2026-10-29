@@ -356,6 +356,16 @@ class StashStore: ObservableObject {
         return BatchOperationResult(attemptedCount: snapshot.count, successCount: successCount)
     }
 
+    /// Zips every stashed file into `destinationDirectory`; the stash is unchanged.
+    func exportArchive(to destinationDirectory: URL) async -> Result<URL, Error> {
+        let files = items.map(\.url)
+        return await Task.detached(priority: .userInitiated) {
+            Result {
+                try StashArchiveExporter.exportArchive(of: files, to: destinationDirectory)
+            }
+        }.value
+    }
+
     private func uniqueDestinationURL(for filename: String) -> URL {
         uniqueURL(at: stashDirectory, for: filename)
     }
@@ -390,12 +400,21 @@ class StashStore: ObservableObject {
     }
 
     private func uniqueURL(at directory: URL, for filename: String) -> URL {
+        Self.uniqueURL(at: directory, for: filename) { fileSystem.fileExists(atPath: $0) }
+    }
+
+    /// `filename` in `directory`, or `"name 2.ext"`, `"name 3.ext"`… when taken.
+    nonisolated static func uniqueURL(
+        at directory: URL,
+        for filename: String,
+        fileExists: (String) -> Bool
+    ) -> URL {
         var destination = directory.appendingPathComponent(filename)
         let fileExtension = (filename as NSString).pathExtension
         let baseName = (filename as NSString).deletingPathExtension
 
         var counter = 2
-        while fileSystem.fileExists(atPath: destination.path) {
+        while fileExists(destination.path) {
             let newName = fileExtension.isEmpty ? "\(baseName) \(counter)" : "\(baseName) \(counter).\(fileExtension)"
             destination = directory.appendingPathComponent(newName)
             counter += 1

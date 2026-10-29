@@ -313,6 +313,8 @@ struct GlassLightingEngineTests {
         #expect(CGFloat(GlassLightingStyle.bevel(for: .panel).width) <= SideStashSidebarStyle.fileListInset)
         #expect(CGFloat(GlassLightingStyle.bevel(for: .plate).width) < SideStashSidebarStyle.rowCornerRadius)
         #expect(CGFloat(GlassLightingStyle.bevel(for: .pill).width) <= SideStashSidebarChromePolicy.bottomActionsHeight / 2)
+        // The header pill borrows the plate bevel; it must fit its 28 pt capsule.
+        #expect(CGFloat(GlassLightingStyle.bevel(for: .plate).width) < SideStashSidebarChromePolicy.moreActionsHeight / 2)
         // A tight, Apple-like edge everywhere.
         for kind in [GlassSurfaceKind.panel, .pill, .plate] {
             #expect(GlassLightingStyle.bevel(for: kind).profileExponent == 4)

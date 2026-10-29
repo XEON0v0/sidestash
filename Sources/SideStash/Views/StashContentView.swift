@@ -4,6 +4,8 @@ struct StashContentView: View {
     @EnvironmentObject var store: StashStore
     @Environment(\.glassLightingScene) private var lightingScene
     @State private var pendingAlert: BulkActionAlert?
+    @State private var isSharePickerPresented = false
+    @State private var isExportingArchive = false
 
     var panelHeight: CGFloat = 420
     var onClose: (() -> Void)?
@@ -24,7 +26,6 @@ struct StashContentView: View {
     }
 
     private enum Layout {
-        static let headerTitleFontSize: CGFloat = 13
         static let emptyStateBottomPadding: CGFloat = 18
         static let emptyStateFontSize: CGFloat = 14
     }
@@ -59,8 +60,8 @@ struct StashContentView: View {
             } action: { size in
                 lightingScene?.bounds = CGRect(origin: .zero, size: size)
             }
-        .onChange(of: pendingAlert?.id) { _, alertID in
-            onAlertPresentationChanged?(alertID != nil)
+        .onChange(of: isContentModalPresented) { _, isPresented in
+            onAlertPresentationChanged?(isPresented)
         }
         .onDisappear {
             onAlertPresentationChanged?(false)
@@ -91,6 +92,11 @@ struct StashContentView: View {
         }
     }
 
+    /// Alerts and the share picker both keep the panel from following Finder.
+    private var isContentModalPresented: Bool {
+        pendingAlert != nil || isSharePickerPresented
+    }
+
     @ViewBuilder
     private var stashContent: some View {
         if store.items.isEmpty {
@@ -106,16 +112,13 @@ struct StashContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .allowsHitTesting(true)
 
-            Text("SideStash")
-                .font(.system(size: Layout.headerTitleFontSize, weight: .semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, SideStashSidebarChromePolicy.headerTitleReservedSideWidth)
-
             closeButton
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, SideStashSidebarChromePolicy.closeButtonLeadingInset)
+
+            moreActionsPill
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.trailing, SideStashSidebarChromePolicy.moreActionsTrailingInset)
         }
         .frame(height: SideStashSidebarStyle.headerHeight)
     }
@@ -126,6 +129,15 @@ struct StashContentView: View {
                 width: SideStashSidebarChromePolicy.closeButtonSlotWidth,
                 height: SideStashSidebarStyle.headerHeight
             )
+    }
+
+    private var moreActionsPill: some View {
+        MoreActionsPill(
+            items: store.items,
+            isBusy: isExportingArchive,
+            perform: performMoreAction,
+            onSharePresentationChanged: { isSharePickerPresented = $0 }
+        )
     }
 
     private var fileGrid: some View {
@@ -176,14 +188,55 @@ struct StashContentView: View {
         }
     }
 
-    private func moveAllToCurrentFinderFolder() {
+    /// Drag-out and sharing run inside the pill; the rest land here.
+    private func performMoreAction(_ action: SideStashMoreAction) {
+        switch action {
+        case .exportArchive:
+            exportArchiveToCurrentFinderFolder()
+        case .dragAllOut, .systemShare, .convertFormat:
+            break
+        }
+    }
+
+    private func exportArchiveToCurrentFinderFolder() {
+        guard !isExportingArchive else { return }
+        guard let destination = currentFinderFolderOrAlert() else { return }
+
+        let fileCount = store.items.count
+        isExportingArchive = true
+        Task { @MainActor in
+            let result = await store.exportArchive(to: destination)
+            isExportingArchive = false
+
+            switch result {
+            case let .success(archiveURL):
+                let format = NSLocalizedString("more.archive.result.success", comment: "Archive exported")
+                pendingAlert = .result(
+                    title: "SideStash",
+                    message: String(format: format, fileCount, archiveURL.lastPathComponent)
+                )
+            case let .failure(error):
+                pendingAlert = .result(
+                    title: NSLocalizedString("more.archive.result.failure", comment: "Archive export failed"),
+                    message: error.localizedDescription
+                )
+            }
+        }
+    }
+
+    private func currentFinderFolderOrAlert() -> URL? {
         guard let destination = FinderCurrentFolderResolver.shared.currentFinderFolder() else {
             pendingAlert = .result(
                 title: NSLocalizedString("bulk.current_folder.missing.title", comment: "Missing Finder folder title"),
                 message: NSLocalizedString("bulk.current_folder.missing.message", comment: "Missing Finder folder message")
             )
-            return
+            return nil
         }
+        return destination
+    }
+
+    private func moveAllToCurrentFinderFolder() {
+        guard let destination = currentFinderFolderOrAlert() else { return }
 
         let result = store.moveAll(to: destination)
         showResult(

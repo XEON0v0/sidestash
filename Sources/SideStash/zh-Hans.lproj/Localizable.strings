@@ -24,3 +24,17 @@
 "bulk.restore.result.none" = "没有可放回原处的文件。";
 "bulk.unavailable.empty" = "当前没有暂存文件。";
 "bulk.restore.unavailable" = "没有可放回原处的文件。";
+"more.menu.title" = "更多功能";
+"more.section.share" = "批量共享";
+"more.drag_all.title" = "一次拖出全部";
+"more.drag_all.short" = "拖出全部";
+"more.drag_all.hint" = "按住拖到网页或 App 的上传区域，文件会保留在暂存区";
+"more.share.title" = "系统共享…";
+"more.share.short" = "共享";
+"more.archive.title" = "导出为压缩包";
+"more.archive.short" = "压缩";
+"more.archive.result.success" = "已将 %d 个文件导出为“%@”。";
+"more.archive.result.failure" = "无法导出压缩包";
+"more.convert.title" = "格式转换（即将推出）";
+"more.convert.short" = "转换";
+"more.convert.unavailable" = "格式转换即将推出。";

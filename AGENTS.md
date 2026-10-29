@@ -33,6 +33,10 @@ A menu-bar-only app that acts as a temporary file drop zone. Files dragged in fr
 | `Views/StashPanelSurfaceFactory.swift` | Builds the panel's single `NSGlassEffectView` (Liquid Glass body) and re-tints it on appearance changes |
 | `Views/SideStashGlassPalette.swift` | Light/dark color tokens; AppKit layers resolve them against `effectiveAppearance` |
 | `Views/StashContentView.swift` | Main panel UI — header with custom drag handle, file grid, empty state |
+| `Views/MoreActionsPill.swift` | Header capsule (top right): `…` menu of more actions, leading segment repeats the last one used; hosts the system share picker |
+| `Views/SideStashMoreActions.swift` | `SideStashMoreAction` (drag all out, share, export archive, format conversion placeholder) and `MoreActionsMemory` (last used, in `UserDefaults`) |
+| `DragOut/MultiFileDragSource.swift` | Drags every stashed file out in one `.copy` session; files stay in the stash |
+| `Services/StashArchiveExporter.swift` | Zips stashed files (via `/usr/bin/ditto`, no `__MACOSX` sidecars) into the current Finder folder |
 | `Views/BottomActionToolbar.swift` | Bulk-action capsule — native `glassEffect`, hover lens, delayed tooltips with disabled reasons |
 | `Views/FileGridItem.swift` | One file on its own glass plate — `DraggableFileItem` on top, plate with a lit bevel behind (light-mode wash only on the plateau); registers its icon as a light |
 | `Lighting/GlassLightingScene.swift` | Shared light environment: icon light positions, pointer-following key light, panel bounds; pushes changes straight to the bevels (no SwiftUI updates) |

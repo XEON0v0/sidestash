@@ -262,7 +262,7 @@ struct BottomActionToolbar: View {
     }
 }
 
-private struct BottomActionButtonStyle: ButtonStyle {
+struct BottomActionButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
     let isHovered: Bool

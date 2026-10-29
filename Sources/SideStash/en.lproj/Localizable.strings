@@ -24,3 +24,17 @@
 "bulk.restore.result.none" = "No files have original locations to restore.";
 "bulk.unavailable.empty" = "No stashed files.";
 "bulk.restore.unavailable" = "No files have original locations.";
+"more.menu.title" = "More Actions";
+"more.section.share" = "Share All";
+"more.drag_all.title" = "Drag All Out at Once";
+"more.drag_all.short" = "Drag All";
+"more.drag_all.hint" = "Drag into a web page or app upload area. Files stay in the stash.";
+"more.share.title" = "Share…";
+"more.share.short" = "Share";
+"more.archive.title" = "Export as Archive";
+"more.archive.short" = "Zip";
+"more.archive.result.success" = "Exported %d files to “%@”.";
+"more.archive.result.failure" = "Couldn’t export the archive";
+"more.convert.title" = "Convert Format (Coming Soon)";
+"more.convert.short" = "Convert";
+"more.convert.unavailable" = "Format conversion is coming soon.";

@@ -67,9 +67,20 @@ enum SideStashSidebarChromePolicy {
         12
     }
 
-    static var headerTitleReservedSideWidth: CGFloat {
-        closeButtonLeadingInset + closeButtonSlotWidth + 8
-    }
+    // Header "more actions" pill, right of the close button's row. Its
+    // trailing inset keeps it about as far from the panel's top-right corner
+    // as the close button is from the top-left one.
+    static let moreActionsHeight: CGFloat = 28
+    static let moreActionsTrailingInset: CGFloat = 4
+    static let moreActionsMenuSegmentWidth: CGFloat = 30
+    static let moreActionsLeadingMaxWidth: CGFloat = 120
+    static let moreActionsLeadingHorizontalPadding: CGFloat = 10
+    static let moreActionsDividerWidth: CGFloat = 1
+    static let moreActionsDividerHeight: CGFloat = 14
+    static let moreActionsIconSize: CGFloat = 13
+    static let moreActionsLabelFontSize: CGFloat = 12
+    /// How long the leading segment glows after it switches to a new action.
+    static let moreActionsHintDuration: TimeInterval = 1.2
 
     static var usesSystemPanelShadow: Bool {
         true

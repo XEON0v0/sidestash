@@ -31,6 +31,17 @@ struct BuildAppScriptTests {
         #expect(script.contains("--show-bin-path"))
     }
 
+    @Test func buildAppScript_signsTheWholeBundle() throws {
+        let script = try contents(of: "build_app.sh")
+
+        #expect(script.contains("codesign --force --sign - --identifier \"${BUNDLE_ID}\" \"${APP_BUNDLE}\""))
+        #expect(script.contains("codesign --verify --strict \"${APP_BUNDLE}\""))
+        // Signing seals the bundle, so it must come after the last write to it.
+        let signIndex = try #require(script.range(of: "codesign --force")).lowerBound
+        let iconIndex = try #require(script.range(of: "iconutil -c icns")).lowerBound
+        #expect(iconIndex < signIndex)
+    }
+
     private func contents(of relativePath: String) throws -> String {
         try String(
             contentsOf: projectRoot.appendingPathComponent(relativePath),

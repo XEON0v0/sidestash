@@ -265,6 +265,12 @@ fi
 
 rm -rf "${ICONSET_DIR}" "${SWIFT_SCRIPT}"
 
+# The linker's ad-hoc signature covers only the binary; sign the finished
+# bundle so its resources and Info.plist are sealed too.
+echo "==> Signing app bundle (ad-hoc)..."
+codesign --force --sign - --identifier "${BUNDLE_ID}" "${APP_BUNDLE}"
+codesign --verify --strict "${APP_BUNDLE}"
+
 echo "==> Done!"
 echo "    App bundle: ${APP_BUNDLE}"
 echo ""
